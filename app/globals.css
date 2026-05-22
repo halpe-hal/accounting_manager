@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+:root {
+  --brand: #006a38;
+  --font-sans: var(--font-noto);
+}
+
+@theme inline {
+  --font-sans: var(--font-noto);
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
