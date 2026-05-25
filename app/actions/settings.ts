@@ -69,14 +69,18 @@ export async function updateDivision(
         "default_partners", "fixed_categories",
         "income_sources", "expense_targets",
       ] as const;
-      const results = await Promise.all(
-        tables.map((t) =>
-          supabase.from(t).update({ top_category: newName }).eq("top_category", oldName)
-        )
-      );
-      const failed = results
-        .map((r, i) => r.error ? `${tables[i]}: ${r.error.message}` : null)
-        .filter(Boolean);
+      const [topCategoryResults, divisionAccessResult] = await Promise.all([
+        Promise.all(
+          tables.map((t) =>
+            supabase.from(t).update({ top_category: newName }).eq("top_category", oldName)
+          )
+        ),
+        supabase.from("user_division_access").update({ division_name: newName }).eq("division_name", oldName),
+      ]);
+      const failed = [
+        ...topCategoryResults.map((r, i) => r.error ? `${tables[i]}: ${r.error.message}` : null),
+        divisionAccessResult.error ? `user_division_access: ${divisionAccessResult.error.message}` : null,
+      ].filter(Boolean);
       if (failed.length > 0) return { error: `連動更新に失敗したテーブルがあります: ${failed.join(", ")}` };
     }
   }

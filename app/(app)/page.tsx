@@ -7,6 +7,7 @@ export default async function DashboardPage() {
   const perms = await getPermissions();
   if (!can(perms, "dashboard")) {
     if (can(perms, "dashboard-excl-tax")) redirect("/dashboard-excl-tax");
+    else if (can(perms, "honbu")) redirect("/honbu");
     else if (can(perms, "graph-analysis")) redirect("/graph-analysis");
     else if (can(perms, "monthly-io")) redirect("/monthly-io");
     else if (can(perms, "fixed-expense")) redirect("/fixed-expense");

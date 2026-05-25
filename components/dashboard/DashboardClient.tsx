@@ -19,6 +19,7 @@ interface Props {
   allDivisions?: Division[];
   taxIncluded: boolean;
   rowLimit?: PLRow;
+  honbuMode?: boolean;
 }
 
 type PLData = Record<string, Record<string, number>>;
@@ -215,10 +216,13 @@ const HIGHLIGHT_ROWS = new Set([
 const RATE_ROW_KEYS = new Set(Object.keys(RATE_ROWS));
 const PROFIT_RATE_LABELS = new Set(["実質営業利益率", "最終営業利益率"]);
 
-export default function DashboardClient({ divisions, allDivisions, taxIncluded, rowLimit }: Props) {
+export default function DashboardClient({ divisions, allDivisions, taxIncluded, rowLimit, honbuMode }: Props) {
   const terms = generateTerms();
   const [selectedTermIdx, setSelectedTermIdx] = useState(terms.length - 1);
-  const { allOptions, virtualMap } = buildVirtualGroups(divisions, allDivisions);
+  const { allOptions: rawOptions, virtualMap } = buildVirtualGroups(divisions, allDivisions);
+  const allOptions = honbuMode
+    ? rawOptions.filter((opt) => opt.key === "Lia全体合計" || Boolean(virtualMap[opt.key]))
+    : rawOptions;
   const [selectedDiv, setSelectedDiv] = useState(() => allOptions[0]?.key ?? "");
   const [plData, setPLData] = useState<PLData | null>(null);
   const [totals, setTotals] = useState<Record<string, number>>({});
@@ -257,6 +261,19 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
           getSalesTotalsByYears(years, selectedDiv),
           getExpenseTotalsByYears(years, selectedDiv),
         ]);
+      }
+
+      if (honbuMode) {
+        const allDivs = allDivisions ?? divisions;
+        const bagelNames = new Set(
+          allDivs.filter((d) => d.brand === "HAL'S BAGEL.").map((d) => d.name)
+        );
+        salesData = salesData.map((r) =>
+          bagelNames.has(r.top_category) ? { ...r, total_amount: r.total_amount * 0.5 } : r
+        );
+        expData = expData.map((r) =>
+          bagelNames.has(r.top_category) ? { ...r, total_cost: r.total_cost * 0.5 } : r
+        );
       }
 
       const pl = calcPL(salesData, expData, months, taxIncluded);
@@ -310,10 +327,15 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
     : {};
 
   const HIDDEN_EXCL_TAX = new Set(["消費税額", "法人税額", "融資返済元金", "内部留保"]);
+  const honbuMinIdx = PL_ROWS.indexOf("実質営業利益");
+  const honbuLimitIdx = PL_ROWS.indexOf("最終営業利益");
   const limitIdx = rowLimit ? PL_ROWS.indexOf(rowLimit) : PL_ROWS.length - 1;
   const PLRows = Object.keys(plData).filter((r) => {
     if (!taxIncluded && HIDDEN_EXCL_TAX.has(r)) return false;
-    return PL_ROWS.indexOf(r as PLRow) <= limitIdx;
+    const idx = PL_ROWS.indexOf(r as PLRow);
+    if (honbuMode && idx < honbuMinIdx) return false;
+    if (honbuMode) return idx <= honbuLimitIdx;
+    return idx <= limitIdx;
   });
 
   const renderRows = () => {
@@ -423,6 +445,28 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
             })}
           </tr>
         );
+
+        if (honbuMode && rateLabel === "最終営業利益率") {
+          const incentiveTotal = Math.max(0, (totals["最終営業利益"] - 1200000) * 0.1);
+          elements.push(
+            <tr key="インセンティブ原資" className="font-bold bg-green-50">
+              <td className="py-1.5 px-3 text-sm text-black whitespace-nowrap border border-gray-200 sticky left-0 bg-green-50 z-10">
+                インセンティブ原資
+              </td>
+              <td className="py-1.5 px-3 text-sm text-right border border-gray-200 font-medium text-black">
+                {formatYen(incentiveTotal)}
+              </td>
+              {months.map((m) => {
+                const val = Math.max(0, ((plData["最終営業利益"]?.[m] ?? 0) - 1200000) * 0.1);
+                return (
+                  <td key={m} className="py-1.5 px-3 text-sm text-right border border-gray-200 text-black">
+                    {formatYen(val)}
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        }
       }
     }
     return elements;
@@ -431,7 +475,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
   return (
     <div>
       <h1 className="text-2xl font-bold text-black mb-6">
-        {taxIncluded ? "ダッシュボード" : "【税抜】ダッシュボード"}
+        {honbuMode ? "インセンティブ原資計算" : taxIncluded ? "ダッシュボード" : "【税抜】ダッシュボード"}
       </h1>
 
       <div className="flex flex-wrap gap-4 mb-6">

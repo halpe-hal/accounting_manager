@@ -7,6 +7,7 @@ import { logout } from "@/app/actions/auth";
 const NAV_ITEMS = [
   { label: "ダッシュボード",          href: "/",                  permKey: "dashboard" },
   { label: "【税抜】ダッシュボード",  href: "/dashboard-excl-tax", permKey: "dashboard-excl-tax" },
+  { label: "※本部用",                href: "/honbu",              permKey: "honbu" },
   { label: "グラフ分析",              href: "/graph-analysis",     permKey: "graph-analysis" },
   { label: "月別入出金管理",          href: "/monthly-io",         permKey: "monthly-io" },
   { label: "固定費管理",              href: "/fixed-expense",      permKey: "fixed-expense" },
