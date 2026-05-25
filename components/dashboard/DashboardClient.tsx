@@ -11,11 +11,14 @@ import {
 } from "@/app/actions/dashboard";
 import type { Division, SalesTotal, ExpenseTotal, ExpenseTarget, Term } from "@/lib/types";
 import { buildVirtualGroups } from "@/lib/division-utils";
+import { PL_ROWS } from "@/lib/dashboard-rows";
+import type { PLRow } from "@/lib/dashboard-rows";
 
 interface Props {
   divisions: Division[];
   allDivisions?: Division[];
   taxIncluded: boolean;
+  rowLimit?: PLRow;
 }
 
 type PLData = Record<string, Record<string, number>>;
@@ -56,20 +59,30 @@ function calcPL(
     const s = salesMap[ym] ?? {};
     const e = expMap[ym] ?? {};
 
+    // DB から取得した税込の生データ（消費税額計算に使用）
     const u10 = s["売上10%"] ?? 0;
     const u8 = s["売上8%"] ?? 0;
     const o10 = s["その他売上10%"] ?? 0;
     const o8 = s["その他売上8%"] ?? 0;
-    const 原価 = e["原価（仕入れ高）"] ?? 0;
+    const 原価_raw = e["原価（仕入れ高）"] ?? 0;
+    const 水道光熱費_raw = e["水道光熱費"] ?? 0;
+    const 消耗品_raw = e["消耗品費・その他諸経費"] ?? 0;
+    const その他固定費_raw = e["その他固定費"] ?? 0;
+    const 家賃_raw = e["家賃"] ?? 0;
+    const 広告費_raw = e["広告費"] ?? 0;
+    const 臨時_raw = e["臨時諸経費"] ?? 0;
+
+    // 税抜モードでは消費税対象の経費を割り戻す
+    const 原価 = taxIncluded ? 原価_raw : 原価_raw / 1.08;
     const 人件費 = e["人件費"] ?? 0;
     const 非経費人件費 = e["源泉税・地方税・社会保険料"] ?? 0;
-    const 水道光熱費 = e["水道光熱費"] ?? 0;
-    const 消耗品 = e["消耗品費・その他諸経費"] ?? 0;
-    const その他固定費 = e["その他固定費"] ?? 0;
-    const 家賃 = e["家賃"] ?? 0;
-    const 広告費 = e["広告費"] ?? 0;
+    const 水道光熱費 = taxIncluded ? 水道光熱費_raw : 水道光熱費_raw / 1.1;
+    const 消耗品 = taxIncluded ? 消耗品_raw : 消耗品_raw / 1.1;
+    const その他固定費 = taxIncluded ? その他固定費_raw : その他固定費_raw / 1.1;
+    const 家賃 = taxIncluded ? 家賃_raw : 家賃_raw / 1.1;
+    const 広告費 = taxIncluded ? 広告費_raw : 広告費_raw / 1.1;
     const 融資利息 = e["融資返済利息"] ?? 0;
-    const 臨時 = e["臨時諸経費"] ?? 0;
+    const 臨時 = taxIncluded ? 臨時_raw : 臨時_raw / 1.1;
     const 税金等 = e["（非課税）保険料・税金等"] ?? 0;
     const 融資元金 = e["融資返済元金"] ?? 0;
     const インセンティブ = e["インセンティブ支給総額"] ?? 0;
@@ -84,12 +97,14 @@ function calcPL(
     const 実質営業利益 = 売上総利益 - 人件費 - 水道光熱費 - 消耗品 - その他固定費 - 家賃 - 広告費 - 融資利息;
     const 最終営業利益 = 実質営業利益 - 臨時 - 税金等;
     const 税額計算利益 = 最終営業利益 - インセンティブ;
+
+    // 消費税額は常に税込生データから計算
     const 消費税額 =
       (u10 + o10) - (u10 + o10) / 1.1 +
       (u8 + o8) - (u8 + o8) / 1.08 -
-      (原価 - 原価 / 1.08) -
-      ((水道光熱費 + 消耗品 + 臨時 + その他固定費 + 家賃 + 広告費) -
-       (水道光熱費 + 消耗品 + 臨時 + その他固定費 + 家賃 + 広告費) / 1.1);
+      (原価_raw - 原価_raw / 1.08) -
+      ((水道光熱費_raw + 消耗品_raw + 臨時_raw + その他固定費_raw + 家賃_raw + 広告費_raw) -
+       (水道光熱費_raw + 消耗品_raw + 臨時_raw + その他固定費_raw + 家賃_raw + 広告費_raw) / 1.1);
     const preLevy = 税額計算利益 - 消費税額;
     const 法人税額 = preLevy > 0 ? preLevy * 0.3358 : 0;
     const 内部留保 = 税額計算利益 - 消費税額 - 法人税額 - 融資元金;
@@ -124,7 +139,7 @@ function calcPL(
   return pl;
 }
 
-function calcTotals(pl: PLData, months: string[]): Record<string, number> {
+function calcTotals(pl: PLData, months: string[], taxIncluded: boolean): Record<string, number> {
   const totals: Record<string, number> = {};
   for (const [row, vals] of Object.entries(pl)) {
     totals[row] = months.reduce((sum, m) => sum + (vals[m] ?? 0), 0);
@@ -145,12 +160,25 @@ function calcTotals(pl: PLData, months: string[]): Record<string, number> {
   const inc総 = totals["インセンティブ支給総額"] ?? 0;
   const 最終 = totals["最終営業利益"] ?? 0;
   const 税額計算 = 最終 - inc総;
-  const 消費税 =
-    (u10t + o10t) - (u10t + o10t) / 1.1 +
-    (u8t + o8t) - (u8t + o8t) / 1.08 -
-    (原価t - 原価t / 1.08) -
-    ((水t + 消t + 臨t + 固t + 家t + 広t) -
-     (水t + 消t + 臨t + 固t + 家t + 広t) / 1.1);
+
+  // pl に格納済みの値が税込か税抜かで消費税計算式を切り替える
+  let 消費税: number;
+  if (taxIncluded) {
+    消費税 =
+      (u10t + o10t) - (u10t + o10t) / 1.1 +
+      (u8t + o8t) - (u8t + o8t) / 1.08 -
+      (原価t - 原価t / 1.08) -
+      ((水t + 消t + 臨t + 固t + 家t + 広t) -
+       (水t + 消t + 臨t + 固t + 家t + 広t) / 1.1);
+  } else {
+    // 税抜値から消費税額を逆算（税抜 × 税率）
+    消費税 =
+      (u10t + o10t) * 0.1 +
+      (u8t + o8t) * 0.08 -
+      原価t * 0.08 -
+      (水t + 消t + 臨t + 固t + 家t + 広t) * 0.1;
+  }
+
   const preLevy = 税額計算 - 消費税;
   const 法人税 = preLevy > 0 ? preLevy * 0.3358 : 70000;
   totals["税額計算利益"] = 税額計算;
@@ -187,7 +215,7 @@ const HIGHLIGHT_ROWS = new Set([
 const RATE_ROW_KEYS = new Set(Object.keys(RATE_ROWS));
 const PROFIT_RATE_LABELS = new Set(["実質営業利益率", "最終営業利益率"]);
 
-export default function DashboardClient({ divisions, allDivisions, taxIncluded }: Props) {
+export default function DashboardClient({ divisions, allDivisions, taxIncluded, rowLimit }: Props) {
   const terms = generateTerms();
   const [selectedTermIdx, setSelectedTermIdx] = useState(terms.length - 1);
   const { allOptions, virtualMap } = buildVirtualGroups(divisions, allDivisions);
@@ -232,7 +260,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded }
       }
 
       const pl = calcPL(salesData, expData, months, taxIncluded);
-      const t = calcTotals(pl, months);
+      const t = calcTotals(pl, months, taxIncluded);
       setPLData(pl);
       setTotals(t);
 
@@ -281,7 +309,12 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded }
       }
     : {};
 
-  const PLRows = Object.keys(plData);
+  const HIDDEN_EXCL_TAX = new Set(["消費税額", "法人税額", "融資返済元金", "内部留保"]);
+  const limitIdx = rowLimit ? PL_ROWS.indexOf(rowLimit) : PL_ROWS.length - 1;
+  const PLRows = Object.keys(plData).filter((r) => {
+    if (!taxIncluded && HIDDEN_EXCL_TAX.has(r)) return false;
+    return PL_ROWS.indexOf(r as PLRow) <= limitIdx;
+  });
 
   const renderRows = () => {
     const elements: React.ReactNode[] = [];
@@ -312,14 +345,17 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded }
           <td className={`py-1.5 px-3 text-sm text-black whitespace-nowrap border border-gray-200 sticky left-0 ${stickyBg} z-10`}>
             {row}
           </td>
-          <td className="py-1.5 px-3 text-sm text-right text-black border border-gray-200 font-medium">
+          <td className={`py-1.5 px-3 text-sm text-right border border-gray-200 font-medium ${(totals[row] ?? 0) < 0 ? "text-red-600" : "text-black"}`}>
             {formatYen(totals[row] ?? 0)}
           </td>
-          {months.map((m) => (
-            <td key={m} className="py-1.5 px-3 text-sm text-right text-black border border-gray-200">
-              {formatYen(plData[row]?.[m] ?? 0)}
-            </td>
-          ))}
+          {months.map((m) => {
+            const val = plData[row]?.[m] ?? 0;
+            return (
+              <td key={m} className={`py-1.5 px-3 text-sm text-right border border-gray-200 ${val < 0 ? "text-red-600" : "text-black"}`}>
+                {formatYen(val)}
+              </td>
+            );
+          })}
         </tr>
       );
 

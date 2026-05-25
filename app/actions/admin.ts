@@ -129,3 +129,28 @@ export async function revokeAllDivisionAccess(userId: string) {
     .eq("user_id", userId);
   revalidatePath("/admin/divisions");
 }
+
+export async function getDashboardRowLimits(): Promise<Record<string, string>> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("user_dashboard_row_limit").select("user_id, max_row");
+  const result: Record<string, string> = {};
+  for (const row of data ?? []) result[row.user_id] = row.max_row;
+  return result;
+}
+
+export async function setDashboardRowLimit(
+  userId: string,
+  maxRow: string | null
+): Promise<{ error: string } | undefined> {
+  const authErr = await checkWriteAdmin(); if (authErr) return authErr;
+  const supabase = await createClient();
+  if (!maxRow) {
+    const { error } = await supabase.from("user_dashboard_row_limit").delete().eq("user_id", userId);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("user_dashboard_row_limit")
+      .upsert({ user_id: userId, max_row: maxRow }, { onConflict: "user_id" });
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/admin/dashboard-limit");
+}

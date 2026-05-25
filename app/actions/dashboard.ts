@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ADMIN_EMAILS } from "@/lib/page-permissions";
 import type { Division, SalesTotal, ExpenseTotal, ExpenseTarget } from "@/lib/types";
+import type { PLRow } from "@/lib/dashboard-rows";
 
 export async function getDivisions(): Promise<Division[]> {
   const supabase = await createClient();
@@ -117,4 +118,17 @@ export async function getExpenseTarget(
     .eq("top_category", topCategory)
     .maybeSingle();
   return data ?? null;
+}
+
+export async function getCurrentUserDashboardRowLimit(): Promise<PLRow | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  if (ADMIN_EMAILS.includes(user.email ?? "")) return null;
+  const { data } = await supabase
+    .from("user_dashboard_row_limit")
+    .select("max_row")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data?.max_row as PLRow) ?? null;
 }

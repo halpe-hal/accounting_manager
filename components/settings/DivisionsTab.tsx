@@ -25,6 +25,7 @@ export default function DivisionsTab({ initial }: { initial: Division[] }) {
   const [editType, setEditType] = useState("");
   const [editBrand, setEditBrand] = useState("");
   const [editTag, setEditTag] = useState("");
+  const [editError, setEditError] = useState("");
 
   async function handleAdd() {
     if (!name.trim()) return;
@@ -62,16 +63,19 @@ export default function DivisionsTab({ initial }: { initial: Division[] }) {
     setEditType(d.type ?? "");
     setEditBrand(d.brand ?? "");
     setEditTag(d.tag ?? "");
+    setEditError("");
   }
 
   async function handleUpdate(id: number) {
+    if (!editName.trim()) { setEditError("事業部・店舗名は必須です。"); return; }
+    setEditError("");
     const result = await updateDivision(id, {
-      name: editName.trim() || undefined,
+      name: editName.trim(),
       type: editType.trim() || null,
       brand: editBrand.trim() || null,
       tag: editTag.trim() || null,
     });
-    if (result?.error) { setError(result.error); return; }
+    if (result?.error) { setEditError(result.error); return; }
     setEditingId(null);
     router.refresh();
   }
@@ -183,15 +187,18 @@ export default function DivisionsTab({ initial }: { initial: Division[] }) {
                         className="w-full border border-gray-200 rounded px-2 py-1 text-sm bg-white" />
                     </td>
                     <td className="py-1 px-2 border border-gray-200">
-                      <div className="flex gap-1">
-                        <button onClick={() => handleUpdate(d.id)}
-                          className="text-xs text-white px-2 py-0.5 rounded" style={{ backgroundColor: "#006a38" }}>
-                          保存
-                        </button>
-                        <button onClick={() => setEditingId(null)}
-                          className="text-xs text-black px-2 py-0.5 rounded border border-gray-200">
-                          キャンセル
-                        </button>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex gap-1">
+                          <button onClick={() => handleUpdate(d.id)}
+                            className="text-xs text-white px-2 py-0.5 rounded" style={{ backgroundColor: "#006a38" }}>
+                            保存
+                          </button>
+                          <button onClick={() => setEditingId(null)}
+                            className="text-xs text-black px-2 py-0.5 rounded border border-gray-200">
+                            キャンセル
+                          </button>
+                        </div>
+                        {editError && <p className="text-red-500 text-xs">{editError}</p>}
                       </div>
                     </td>
                   </>

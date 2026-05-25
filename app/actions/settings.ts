@@ -55,6 +55,32 @@ export async function updateDivision(
 ) {
   const authErr = await checkWriteAdmin(); if (authErr) return authErr;
   const supabase = await createClient();
+
+  if (data.name) {
+    const { data: current } = await supabase
+      .from("divisions").select("name").eq("id", id).maybeSingle();
+    const oldName = current?.name;
+    if (oldName && oldName !== data.name) {
+      const newName = data.name;
+      const tables = [
+        "all_expense", "all_expense_depreciation",
+        "all_expense_total", "all_expense_total_depreciation",
+        "all_sales", "all_sales_total",
+        "default_partners", "fixed_categories",
+        "income_sources", "expense_targets",
+      ] as const;
+      const results = await Promise.all(
+        tables.map((t) =>
+          supabase.from(t).update({ top_category: newName }).eq("top_category", oldName)
+        )
+      );
+      const failed = results
+        .map((r, i) => r.error ? `${tables[i]}: ${r.error.message}` : null)
+        .filter(Boolean);
+      if (failed.length > 0) return { error: `連動更新に失敗したテーブルがあります: ${failed.join(", ")}` };
+    }
+  }
+
   await supabase.from("divisions").update(data).eq("id", id);
   revalidatePath("/settings");
 }

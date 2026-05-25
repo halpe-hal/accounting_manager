@@ -84,6 +84,17 @@ export default function Sidebar({ isAdmin = false, perms = new Set() }: Props) {
           >
             事業部アクセス管理
           </Link>
+          <Link
+            href="/admin/dashboard-limit"
+            className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              pathname === "/admin/dashboard-limit"
+                ? "text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+            style={pathname === "/admin/dashboard-limit" ? { backgroundColor: "#006a38" } : {}}
+          >
+            ダッシュボード表示制限
+          </Link>
         </div>
       )}
 
