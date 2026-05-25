@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ADMIN_EMAILS } from "@/lib/page-permissions";
+import { isDepreciationMode } from "@/lib/depreciation-mode";
 import type { Division, SalesTotal, ExpenseTotal, ExpenseTarget } from "@/lib/types";
 import type { PLRow } from "@/lib/dashboard-rows";
 
@@ -91,8 +92,10 @@ export async function getExpenseTotalsByYears(
   topCategory: string
 ): Promise<ExpenseTotal[]> {
   const supabase = await createClient();
+  const depMode = await isDepreciationMode();
+  const table = depMode ? "all_expense_total_depreciation" : "all_expense_total";
   const { data } = await supabase
-    .from("all_expense_total")
+    .from(table)
     .select("*")
     .in("year", years)
     .eq("top_category", topCategory);
@@ -101,8 +104,10 @@ export async function getExpenseTotalsByYears(
 
 export async function getExpenseTotalsAll(years: number[]): Promise<ExpenseTotal[]> {
   const supabase = await createClient();
+  const depMode = await isDepreciationMode();
+  const table = depMode ? "all_expense_total_depreciation" : "all_expense_total";
   const { data } = await supabase
-    .from("all_expense_total")
+    .from(table)
     .select("*")
     .in("year", years);
   return data ?? [];

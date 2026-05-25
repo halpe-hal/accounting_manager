@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
+import DepreciationToggle from "@/components/DepreciationToggle";
 
 const NAV_ITEMS = [
   { label: "ダッシュボード",          href: "/",                  permKey: "dashboard" },
@@ -17,15 +18,16 @@ const NAV_ITEMS = [
 interface Props {
   isAdmin?: boolean;
   perms?: Set<string>;
+  depreciationMode?: boolean;
 }
 
-export default function Sidebar({ isAdmin = false, perms = new Set() }: Props) {
+export default function Sidebar({ isAdmin = false, perms = new Set(), depreciationMode = false }: Props) {
   const pathname = usePathname();
   const hasAll = perms.has("*");
 
   return (
     <aside className="w-56 h-screen bg-white border-r border-gray-200 flex flex-col py-6 px-3 flex-shrink-0">
-      <div className="flex items-center gap-2 px-2 mb-6">
+      <div className="flex items-center gap-2 px-2 mb-4">
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
           style={{ backgroundColor: "#006a38" }}
@@ -34,6 +36,12 @@ export default function Sidebar({ isAdmin = false, perms = new Set() }: Props) {
         </div>
         <span className="font-bold text-gray-800 text-sm">Lia 管理会計</span>
       </div>
+
+      {isAdmin && (
+        <div className="mb-4 px-0">
+          <DepreciationToggle isDepreciation={depreciationMode} />
+        </div>
+      )}
 
       <nav className="flex-1 space-y-1">
         {NAV_ITEMS.map((item) => {

@@ -45,6 +45,7 @@ export default function MonthlyIOClient({
   const [sales, setSales] = useState<Sale[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expenseTableKey, setExpenseTableKey] = useState(0);
 
   const years = Array.from({ length: 10 }, (_, i) => now.getFullYear() - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -58,6 +59,7 @@ export default function MonthlyIOClient({
     ]);
     setSales(s);
     setExpenses(e);
+    setExpenseTableKey((k) => k + 1);
     setLoading(false);
   }, [year, month, selectedDiv]);
 
@@ -141,6 +143,7 @@ export default function MonthlyIOClient({
           />
         ) : (
           <ExpenseTable
+            key={expenseTableKey}
             expenses={expenses}
             year={year}
             month={month}

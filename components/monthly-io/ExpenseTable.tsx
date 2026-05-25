@@ -96,10 +96,6 @@ export default function ExpenseTable({
     setMessage("");
   }, [selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    setRows(initRows(expenses, selectedCategory, defaultPartners, topCategory));
-  }, [expenses]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // from_fixed カラムがあればそれを優先、なければ fixed_categories との照合で判定
   const fixedApplied =
     expenses.some((e) => e.from_fixed === true) ||
