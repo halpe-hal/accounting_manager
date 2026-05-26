@@ -8,6 +8,7 @@ export const PAGE_PERMISSIONS = [
   { key: "monthly-io",         label: "月別入出金管理" },
   { key: "fixed-expense",      label: "固定費管理" },
   { key: "settings",           label: "設定" },
+  { key: "credit-card",        label: "クレカ明細取込" },
 ] as const;
 
 export type PagePermissionKey = (typeof PAGE_PERMISSIONS)[number]["key"];

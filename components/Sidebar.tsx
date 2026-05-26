@@ -8,10 +8,11 @@ import DepreciationToggle from "@/components/DepreciationToggle";
 const NAV_ITEMS = [
   { label: "ダッシュボード",          href: "/",                  permKey: "dashboard" },
   { label: "【税抜】ダッシュボード",  href: "/dashboard-excl-tax", permKey: "dashboard-excl-tax" },
-  { label: "※本部用",                href: "/honbu",              permKey: "honbu" },
   { label: "グラフ分析",              href: "/graph-analysis",     permKey: "graph-analysis" },
   { label: "月別入出金管理",          href: "/monthly-io",         permKey: "monthly-io" },
   { label: "固定費管理",              href: "/fixed-expense",      permKey: "fixed-expense" },
+  { label: "クレカ明細取込",          href: "/credit-card",        permKey: "credit-card" },
+  { label: "※本部用",                href: "/honbu",              permKey: "honbu" },
   { label: "設定",                    href: "/settings",           permKey: "settings" },
 ];
 
@@ -71,6 +72,7 @@ export default function Sidebar({ isAdmin = false, perms = new Set(), depreciati
 
       {isAdmin && (
         <div className="mb-2 space-y-1">
+          <div className="border-t border-gray-200 my-2" />
           <Link
             href="/admin"
             className={`block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${

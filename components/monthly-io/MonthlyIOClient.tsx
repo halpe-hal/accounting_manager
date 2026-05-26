@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getSales } from "@/app/actions/sales";
-import { getExpenses } from "@/app/actions/expense";
+import { getExpenses, resyncDepreciation } from "@/app/actions/expense";
 import type {
   Division,
   Sale,
@@ -24,6 +24,8 @@ interface Props {
   defaultPartners: DefaultPartner[];
   accountItems: AccountItem[];
   fixedCategories: FixedCategory[];
+  isAdmin?: boolean;
+  depreciationMode?: boolean;
 }
 
 export default function MonthlyIOClient({
@@ -33,6 +35,8 @@ export default function MonthlyIOClient({
   defaultPartners,
   accountItems,
   fixedCategories,
+  isAdmin = false,
+  depreciationMode = false,
 }: Props) {
   const sortedDivs = sortDivisionsByBrand(divisions);
   const now = new Date();
@@ -45,6 +49,7 @@ export default function MonthlyIOClient({
   const [sales, setSales] = useState<Sale[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const [expenseTableKey, setExpenseTableKey] = useState(0);
 
   const years = Array.from({ length: 10 }, (_, i) => now.getFullYear() - i);
@@ -105,6 +110,24 @@ export default function MonthlyIOClient({
           </select>
         </div>
       </div>
+
+      {isAdmin && depreciationMode && (
+        <div className="mb-4 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2">
+          <span className="text-xs text-orange-700">減価償却モード：表示順がデフォルトと異なる場合は修正できます</span>
+          <button
+            disabled={resyncing || loading}
+            onClick={async () => {
+              setResyncing(true);
+              await resyncDepreciation(year, month, selectedDiv);
+              await loadData();
+              setResyncing(false);
+            }}
+            className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-100 disabled:opacity-50 whitespace-nowrap"
+          >
+            {resyncing ? "修正中..." : "表示順を修正"}
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4">
         <button

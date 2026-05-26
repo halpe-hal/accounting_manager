@@ -195,6 +195,76 @@ export async function applyFixedExpenses(
   return { count: fixedItems.length };
 }
 
+export async function resyncDepreciation(
+  year: number,
+  month: number,
+  topCategory: string
+): Promise<void> {
+  const authErr = await checkWriteAdmin(); if (authErr) return;
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("all_expense")
+    .select("second_category")
+    .eq("year", year)
+    .eq("month", month)
+    .eq("top_category", topCategory);
+  const categories = [...new Set((rows ?? []).map((r) => r.second_category as string))];
+  for (const cat of categories) {
+    await syncCategory(year, month, cat, topCategory);
+  }
+  revalidatePath("/monthly-io");
+}
+
+export async function registerExpenseFromCard(params: {
+  year: number;
+  month: number;
+  topCategory: string;
+  secondCategory: string;
+  partner: string;
+  account: string;
+  detail: string;
+  cost: number;
+  existingId?: number;
+  existingCost?: number;
+}): Promise<{ success: true } | { error: string }> {
+  const authErr = await checkWriteAdmin();
+  if (authErr) return { error: "権限がありません" };
+
+  const depMode = await isDepreciationMode();
+  const supabase = await createClient();
+  const table = depMode ? "all_expense_depreciation" : "all_expense";
+  const { year, month, topCategory, secondCategory, partner, account, detail, cost } = params;
+
+  if (params.existingId) {
+    const newCost = (params.existingCost ?? 0) + cost;
+    const { error } = await supabase
+      .from(table)
+      .update({ cost: newCost, updated_at: new Date().toISOString() })
+      .eq("id", params.existingId);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from(table).insert({
+      year, month,
+      top_category: topCategory,
+      second_category: secondCategory,
+      partner, account, detail,
+      payment: "クレジットカード",
+      cost,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) return { error: error.message };
+  }
+
+  if (depMode) {
+    await syncDepOnly(year, month, secondCategory, topCategory);
+  } else {
+    await syncCategory(year, month, secondCategory, topCategory);
+  }
+
+  revalidatePath("/monthly-io");
+  return { success: true };
+}
+
 // デフォルトモード: all_expense → all_expense_depreciation に同期し、両方の total を更新
 async function syncCategory(
   year: number,
@@ -210,7 +280,8 @@ async function syncCategory(
     .eq("year", year)
     .eq("month", month)
     .eq("second_category", secondCategory)
-    .eq("top_category", topCategory);
+    .eq("top_category", topCategory)
+    .order("id");
 
   await supabase
     .from("all_expense_depreciation")
