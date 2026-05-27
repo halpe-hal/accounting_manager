@@ -14,6 +14,8 @@ interface Props {
   accountItems: AccountItem[];
   fixedCategories: FixedCategory[];
   onRefresh: () => void;
+  selectedCategory: string;
+  onCategoryChange: (category: string) => void;
 }
 
 const PAYMENTS = ["現金", "クレジットカード", "銀行振込", "銀行引落", "その他"];
@@ -70,10 +72,11 @@ export default function ExpenseTable({
   accountItems,
   fixedCategories,
   onRefresh,
+  selectedCategory,
+  onCategoryChange,
 }: Props) {
-  const [selectedCategory, setSelectedCategory] = useState(expenseCategories[0]?.name ?? "");
   const [rows, setRows] = useState<EditableRow[]>(() =>
-    initRows(expenses, expenseCategories[0]?.name ?? "", defaultPartners, topCategory)
+    initRows(expenses, selectedCategory, defaultPartners, topCategory)
   );
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -95,6 +98,7 @@ export default function ExpenseTable({
     setRows(initRows(expenses, selectedCategory, defaultPartners, topCategory));
     setMessage("");
   }, [selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+  // selectedCategory は親 (MonthlyIOClient) が保持するため、再マウント時も維持される
 
   // from_fixed カラムがあればそれを優先、なければ fixed_categories との照合で判定
   const fixedApplied =
@@ -266,7 +270,7 @@ export default function ExpenseTable({
           <label className="block text-xs text-black mb-1">費目カテゴリを選択</label>
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => onCategoryChange(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none"
           >
             {expenseCategories.map((c) => (

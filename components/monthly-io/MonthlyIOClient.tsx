@@ -51,6 +51,7 @@ export default function MonthlyIOClient({
   const [loading, setLoading] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [expenseTableKey, setExpenseTableKey] = useState(0);
+  const [selectedExpenseCategory, setSelectedExpenseCategory] = useState(expenseCategories[0]?.name ?? "");
 
   const years = Array.from({ length: 10 }, (_, i) => now.getFullYear() - i);
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -176,6 +177,8 @@ export default function MonthlyIOClient({
             accountItems={accountItems}
             fixedCategories={fixedCategories.filter((f) => f.top_category === selectedDiv)}
             onRefresh={loadData}
+            selectedCategory={selectedExpenseCategory}
+            onCategoryChange={setSelectedExpenseCategory}
           />
         )}
       </div>
