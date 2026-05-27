@@ -145,6 +145,27 @@ export type Term = {
   end: string;
 };
 
+// ---- 社会保険料従業員 ----
+export type SocialInsuranceEmployee = {
+  id: number;
+  name: string;
+  standard_monthly_remuneration: number;
+  division: string;
+  enrollment_year: number | null;
+  enrollment_month: number | null;
+  sort_order: number;
+  updated_at?: string;
+};
+
+// ---- 社会保険料率 ----
+export type SocialInsuranceRates = {
+  health_insurance_rate: number;
+  child_support_rate: number;
+  pension_rate: number;
+  child_contribution_rate: number;
+  updated_at?: string;
+};
+
 // ---- ユーザー権限 ----
 export type UserPermission = {
   id: number;

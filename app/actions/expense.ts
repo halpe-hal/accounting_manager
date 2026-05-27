@@ -265,6 +265,57 @@ export async function registerExpenseFromCard(params: {
   return { success: true };
 }
 
+export async function reflectSocialInsurance(
+  year: number,
+  month: number,
+  items: Array<{
+    topCategory: string;
+    secondCategory: string;
+    partner: string;
+    account: string;
+    detail: string;
+    payment: string;
+    cost: number;
+  }>
+): Promise<{ error: string } | { count: number }> {
+  const authErr = await checkWriteAdmin();
+  if (authErr) return { error: "権限がありません" };
+
+  const depMode = await isDepreciationMode();
+  const supabase = await createClient();
+  const table = depMode ? "all_expense_depreciation" : "all_expense";
+
+  for (const item of items) {
+    const { error } = await supabase.from(table).insert({
+      year, month,
+      top_category: item.topCategory,
+      second_category: item.secondCategory,
+      partner: item.partner,
+      account: item.account,
+      detail: item.detail,
+      payment: item.payment,
+      cost: item.cost,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) return { error: error.message };
+
+    if (depMode) {
+      await syncDepOnly(year, month, item.secondCategory, item.topCategory);
+    } else {
+      await syncCategory(year, month, item.secondCategory, item.topCategory);
+    }
+  }
+
+  // 反映済みとして記録（重複は無視）
+  await supabase
+    .from("social_insurance_reflections")
+    .upsert({ year, month, reflected_at: new Date().toISOString() }, { onConflict: "year,month" });
+
+  revalidatePath("/monthly-io");
+  revalidatePath("/social-insurance");
+  return { count: items.length };
+}
+
 // デフォルトモード: all_expense → all_expense_depreciation に同期し、両方の total を更新
 async function syncCategory(
   year: number,
