@@ -11,9 +11,9 @@ const NAV_ITEMS = [
   { label: "グラフ分析",              href: "/graph-analysis",     permKey: "graph-analysis" },
   { label: "月別入出金管理",          href: "/monthly-io",         permKey: "monthly-io" },
   { label: "固定費管理",              href: "/fixed-expense",      permKey: "fixed-expense" },
+  { label: "社会保険料管理",          href: "/social-insurance",   permKey: "social-insurance" },
   { label: "クレカ明細取込",          href: "/credit-card",        permKey: "credit-card" },
   { label: "※本部用",                href: "/honbu",              permKey: "honbu" },
-  { label: "社会保険料管理",          href: "/social-insurance",   permKey: "social-insurance" },
   { label: "設定",                    href: "/settings",           permKey: "settings" },
 ];
 
