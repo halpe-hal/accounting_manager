@@ -5,7 +5,7 @@ import { getRegistrationFormData, findExistingExpense } from "@/app/actions/cred
 import { registerExpenseFromCard } from "@/app/actions/expense";
 import type { CardRecord } from "./parseCardCsv";
 import type { RegistrationFormData } from "@/app/actions/credit-card-register";
-import type { Expense } from "@/lib/types";
+import type { Expense, FixedCategory } from "@/lib/types";
 
 export function recordKey(r: CardRecord) {
   return `${r.date}__${r.description}__${r.amount}__${r.card}`;
@@ -28,7 +28,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
   const [account, setAccount] = useState("");
   const [detail, setDetail] = useState(record.memo ?? "");
   const [mergeMode, setMergeMode] = useState(false);
-  const [updateExisting, setUpdateExisting] = useState(false);
+  const [updateMode, setUpdateMode] = useState<"add" | "replace" | null>(null);
+  const [selectedFixed, setSelectedFixed] = useState<FixedCategory | null>(null);
 
   const [formData, setFormData] = useState<RegistrationFormData | null>(null);
   const [existingExpense, setExistingExpense] = useState<Expense | null | undefined>(undefined);
@@ -54,13 +55,31 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
     findExistingExpense(year, month, topCategory, secondCategory, partner).then((exp) => {
       setExistingExpense(exp);
       setChecking(false);
-      if (!exp) setUpdateExisting(false);
+      if (!exp) setUpdateMode(null);
     });
   }, [year, month, topCategory, secondCategory, partner]);
 
   useEffect(() => {
     checkExisting();
   }, [checkExisting]);
+
+  const FIXED_CATEGORY_NAME = "その他固定費";
+  const isFixedMode = secondCategory === FIXED_CATEGORY_NAME;
+  const fixedOptions = formData
+    ? (formData.fixedCategories ?? []).filter(
+        (f) => f.top_category === topCategory && f.second_category === FIXED_CATEGORY_NAME
+      )
+    : [];
+
+  function handleSelectFixed(fc: FixedCategory | null) {
+    setSelectedFixed(fc);
+    if (fc) {
+      setPartner(fc.partner);
+      setAccount(fc.account);
+      setDetail(fc.detail);
+      setUpdateMode("replace");
+    }
+  }
 
   const samePayeeRecords = allRecords.filter(
     (r) =>
@@ -74,7 +93,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
   const mergedAmount =
     record.amount + (mergeMode ? samePayeeRecords.reduce((s, r) => s + r.amount, 0) : 0);
 
-  const canSubmit = !!topCategory && !!secondCategory && !submitting;
+  const canSubmit = !!topCategory && !!secondCategory && !submitting &&
+    (!isFixedMode || !!selectedFixed);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -90,8 +110,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
       account,
       detail,
       cost: mergedAmount,
-      existingId: updateExisting && existingExpense ? existingExpense.id : undefined,
-      existingCost: updateExisting && existingExpense ? existingExpense.cost : undefined,
+      existingId: updateMode && existingExpense ? existingExpense.id : undefined,
+      existingCost: updateMode === "add" && existingExpense ? existingExpense.cost : 0,
     });
 
     if ("error" in result) {
@@ -207,7 +227,7 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             </label>
             <select
               value={secondCategory}
-              onChange={(e) => setSecondCategory(e.target.value)}
+              onChange={(e) => { setSecondCategory(e.target.value); handleSelectFixed(null); }}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400"
             >
               <option value="">選択してください</option>
@@ -217,6 +237,36 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             </select>
           </div>
 
+          {/* 固定費セレクター（その他固定費選択時のみ） */}
+          {isFixedMode && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                固定費を選択 <span className="text-red-500">*</span>
+              </label>
+              {!topCategory ? (
+                <p className="text-xs text-gray-400">先に事業部を選択してください</p>
+              ) : fixedOptions.length === 0 ? (
+                <p className="text-xs text-gray-400">この事業部の固定費がありません</p>
+              ) : (
+                <select
+                  value={selectedFixed?.id ?? ""}
+                  onChange={(e) => {
+                    const fc = fixedOptions.find((f) => f.id === Number(e.target.value)) ?? null;
+                    handleSelectFixed(fc);
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400"
+                >
+                  <option value="">選択してください</option>
+                  {fixedOptions.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.partner}{f.detail ? `（${f.detail}）` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {/* 取引先 */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">取引先</label>
@@ -224,7 +274,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
               type="text"
               value={partner}
               onChange={(e) => setPartner(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400"
+              readOnly={isFixedMode && !!selectedFixed}
+              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400 ${isFixedMode && selectedFixed ? "bg-gray-50 text-gray-500" : ""}`}
             />
           </div>
 
@@ -234,7 +285,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             <select
               value={account}
               onChange={(e) => setAccount(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400"
+              disabled={isFixedMode && !!selectedFixed}
+              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400 ${isFixedMode && selectedFixed ? "text-gray-500" : ""}`}
             >
               <option value="">-</option>
               {formData.accounts.map((a) => (
@@ -250,8 +302,9 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
               type="text"
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
+              readOnly={isFixedMode && !!selectedFixed}
               placeholder="任意"
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400"
+              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400 ${isFixedMode && selectedFixed ? "bg-gray-50 text-gray-500" : ""}`}
             />
           </div>
 
@@ -264,15 +317,30 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
               <p className="text-sm text-blue-800">
                 この費目に「{existingExpense.partner}」の登録が既にあります（¥{existingExpense.cost.toLocaleString("ja-JP")}）。
               </p>
-              <label className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={updateExisting}
-                  onChange={(e) => setUpdateExisting(e.target.checked)}
-                  className="rounded border-blue-300"
-                />
-                金額を追加して更新（¥{existingExpense.cost.toLocaleString("ja-JP")} + ¥{mergedAmount.toLocaleString("ja-JP")} = ¥{(existingExpense.cost + mergedAmount).toLocaleString("ja-JP")}）
-              </label>
+              {isFixedMode && selectedFixed ? (
+                <p className="text-sm text-blue-700 font-medium">
+                  ¥{existingExpense.cost.toLocaleString("ja-JP")} → ¥{mergedAmount.toLocaleString("ja-JP")} に差し替えます
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {[
+                    { value: null,      label: "新規行として追加する" },
+                    { value: "add"    , label: `金額を追加して更新（¥${existingExpense.cost.toLocaleString("ja-JP")} + ¥${mergedAmount.toLocaleString("ja-JP")} = ¥${(existingExpense.cost + mergedAmount).toLocaleString("ja-JP")}）` },
+                    { value: "replace", label: `金額を差し替えて更新（¥${existingExpense.cost.toLocaleString("ja-JP")} → ¥${mergedAmount.toLocaleString("ja-JP")}）` },
+                  ].map((opt) => (
+                    <label key={String(opt.value)} className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="updateMode"
+                        checked={updateMode === opt.value}
+                        onChange={() => setUpdateMode(opt.value as "add" | "replace" | null)}
+                        className="border-blue-300"
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -287,9 +355,14 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
           <div className="text-sm">
             <span className="text-gray-500">登録金額: </span>
             <span className="font-bold text-gray-800">¥{mergedAmount.toLocaleString("ja-JP")}</span>
-            {updateExisting && existingExpense && (
+            {updateMode === "add" && existingExpense && (
               <span className="text-xs text-gray-500 ml-1">
                 → 合計 ¥{(existingExpense.cost + mergedAmount).toLocaleString("ja-JP")}
+              </span>
+            )}
+            {updateMode === "replace" && existingExpense && (
+              <span className="text-xs text-gray-500 ml-1">
+                → 差し替え ¥{mergedAmount.toLocaleString("ja-JP")}
               </span>
             )}
           </div>
