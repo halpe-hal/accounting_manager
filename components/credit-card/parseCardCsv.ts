@@ -43,6 +43,9 @@ function detect(filename: string, lines: string[]): CardType {
   if (lines.some((l) => l.includes("明細No."))) return "life";
   if (lines[0]?.match(/\d{4}-\d{2}\*+/)) return "smbc";
 
+  // AMEX Gold データ行パターン: 利用日,データ日,店名,カード会員名,-カード番号,金額,,
+  if (lines.some((l) => /^\d{4}\/\d{2}\/\d{2},\d{4}\/\d{2}\/\d{2},[^,]+,[^,]+,-\d{4,},/.test(l))) return "amex-gold";
+
   // Filename fallback
   const f = filename.normalize("NFC").toLowerCase();
   if (f.includes("amex") && (f.includes("gold") || f.includes("ゴールド"))) return "amex-gold";
