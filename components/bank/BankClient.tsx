@@ -96,9 +96,9 @@ export default function BankClient() {
       if (n.has(key)) {
         n.delete(key);
       } else {
-        // チェック時: 同摘要・同銀行の出金を全て選択（日付不問）
+        // チェック時: フィルタ範囲内で同摘要・同銀行の出金を全て選択
         n.add(key);
-        records.forEach((rec) => {
+        filtered.forEach((rec) => {
           if (
             rec.type === "withdrawal" &&
             rec.description === r.description &&
