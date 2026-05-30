@@ -97,12 +97,11 @@ export default function BankClient() {
         n.delete(key);
       } else {
         // チェック時: 同摘要・同銀行の出金を全て選択（日付不問）
-        const normDesc = (s: string) => s.trim().replace(/\s+/g, " ").normalize("NFC");
         n.add(key);
         records.forEach((rec) => {
           if (
             rec.type === "withdrawal" &&
-            normDesc(rec.description) === normDesc(r.description) &&
+            rec.description === r.description &&
             rec.bank === r.bank &&
             !registeredKeys.has(bankRecordKey(rec))
           ) {

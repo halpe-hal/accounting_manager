@@ -100,10 +100,6 @@ export default function CreditCardClient() {
     setBatchOpen(false);
   }
 
-  function normalizeDesc(s: string) {
-    return s.trim().replace(/\s+/g, " ").normalize("NFC");
-  }
-
   function toggleCheck(key: string) {
     setCheckedKeys((prev) => {
       const next = new Set(prev);
@@ -113,9 +109,8 @@ export default function CreditCardClient() {
         next.add(key);
         const target = records.find((r) => recordKey(r) === key);
         if (target) {
-          const targetDesc = normalizeDesc(target.description);
           records.forEach((rec) => {
-            if (normalizeDesc(rec.description) === targetDesc && !registeredKeys.has(recordKey(rec))) {
+            if (rec.description === target.description && !registeredKeys.has(recordKey(rec))) {
               next.add(recordKey(rec));
             }
           });
