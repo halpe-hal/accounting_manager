@@ -96,12 +96,11 @@ export default function BankClient() {
       if (n.has(key)) {
         n.delete(key);
       } else {
-        // チェック時: 同日・同摘要・同銀行の出金を全てグループ選択
+        // チェック時: 同摘要・同銀行の出金を全て選択（日付不問）
         n.add(key);
         records.forEach((rec) => {
           if (
             rec.type === "withdrawal" &&
-            rec.date === r.date &&
             rec.description === r.description &&
             rec.bank === r.bank &&
             !registeredKeys.has(bankRecordKey(rec))

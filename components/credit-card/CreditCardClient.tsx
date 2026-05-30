@@ -103,8 +103,19 @@ export default function CreditCardClient() {
   function toggleCheck(key: string) {
     setCheckedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+        const target = records.find((r) => recordKey(r) === key);
+        if (target) {
+          records.forEach((rec) => {
+            if (rec.description === target.description && !registeredKeys.has(recordKey(rec))) {
+              next.add(recordKey(rec));
+            }
+          });
+        }
+      }
       return next;
     });
   }
