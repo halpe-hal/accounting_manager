@@ -20,6 +20,12 @@ interface Props {
 
 const PAYMENTS = ["現金", "クレジットカード", "銀行振込", "銀行引落", "その他"];
 
+function normalizePayment(p: string | null | undefined): string {
+  if (!p) return PAYMENTS[0];
+  if (p === "クレジット") return "クレジットカード";
+  return PAYMENTS.includes(p) ? p : PAYMENTS[0];
+}
+
 type EditableRow = {
   id: number | null;
   partner: string;
@@ -43,7 +49,7 @@ function initRows(
       partner: e.partner,
       account: e.account,
       detail: e.detail ?? "",
-      payment: e.payment,
+      payment: normalizePayment(e.payment),
       cost: e.cost ?? 0,
       _delete: false,
     }));
