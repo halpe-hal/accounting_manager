@@ -5,7 +5,7 @@ import { getRegistrationFormData, findExistingExpense } from "@/app/actions/cred
 import { registerExpenseFromCard } from "@/app/actions/expense";
 import type { CardRecord } from "./parseCardCsv";
 import type { RegistrationFormData } from "@/app/actions/credit-card-register";
-import type { Expense, FixedCategory } from "@/lib/types";
+import type { Expense, FixedCategory, DefaultPartner } from "@/lib/types";
 
 export function recordKey(r: CardRecord) {
   return `${r.date}__${r.description}__${r.amount}__${r.card}`;
@@ -30,6 +30,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
   const [mergeMode, setMergeMode] = useState(false);
   const [updateMode, setUpdateMode] = useState<"add" | "replace" | null>(null);
   const [selectedFixed, setSelectedFixed] = useState<FixedCategory | null>(null);
+  const [useDefaultPartner, setUseDefaultPartner] = useState(false);
+  const [selectedDefaultPartner, setSelectedDefaultPartner] = useState<DefaultPartner | null>(null);
 
   const [formData, setFormData] = useState<RegistrationFormData | null>(null);
   const [existingExpense, setExistingExpense] = useState<Expense | null | undefined>(undefined);
@@ -77,7 +79,26 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
       setPartner(fc.partner);
       setAccount(fc.account);
       setDetail(fc.detail);
-      setUpdateMode("replace");
+    }
+  }
+
+  function handleSelectDefaultPartner(dp: DefaultPartner | null) {
+    setSelectedDefaultPartner(dp);
+    if (dp) {
+      setPartner(dp.partner);
+      setAccount(dp.account);
+      setDetail(dp.detail);
+    } else {
+      setPartner(record.description);
+      setAccount("");
+      setDetail(record.memo ?? "");
+    }
+  }
+
+  function handleToggleDefaultPartner(checked: boolean) {
+    setUseDefaultPartner(checked);
+    if (!checked) {
+      handleSelectDefaultPartner(null);
     }
   }
 
@@ -93,8 +114,16 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
   const mergedAmount =
     record.amount + (mergeMode ? samePayeeRecords.reduce((s, r) => s + r.amount, 0) : 0);
 
+  const defaultPartnerOptions = formData
+    ? formData.defaultPartners.filter(
+        (dp) => dp.top_category === topCategory && dp.second_category === secondCategory
+      )
+    : [];
+
+  const isLocked = (isFixedMode && !!selectedFixed) || !!selectedDefaultPartner;
   const canSubmit = !!topCategory && !!secondCategory && !submitting &&
-    (!isFixedMode || !!selectedFixed);
+    (!isFixedMode || !!selectedFixed || !!selectedDefaultPartner) &&
+    (!useDefaultPartner || !!selectedDefaultPartner);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -210,7 +239,7 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             </label>
             <select
               value={topCategory}
-              onChange={(e) => setTopCategory(e.target.value)}
+              onChange={(e) => { setTopCategory(e.target.value); setUseDefaultPartner(false); handleSelectDefaultPartner(null); }}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400"
             >
               <option value="">選択してください</option>
@@ -227,7 +256,7 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             </label>
             <select
               value={secondCategory}
-              onChange={(e) => { setSecondCategory(e.target.value); handleSelectFixed(null); }}
+              onChange={(e) => { setSecondCategory(e.target.value); handleSelectFixed(null); setUseDefaultPartner(false); handleSelectDefaultPartner(null); }}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400"
             >
               <option value="">選択してください</option>
@@ -238,7 +267,7 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
           </div>
 
           {/* 固定費セレクター（その他固定費選択時のみ） */}
-          {isFixedMode && (
+          {isFixedMode && !selectedDefaultPartner && (
             <div>
               <label className="block text-xs text-gray-500 mb-1">
                 固定費を選択 <span className="text-red-500">*</span>
@@ -267,6 +296,36 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             </div>
           )}
 
+          {/* 取引先デフォルト設定から選択 */}
+          {topCategory && secondCategory && defaultPartnerOptions.length > 0 && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useDefaultPartner}
+                  onChange={(e) => handleToggleDefaultPartner(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                取引先デフォルト設定から選択
+              </label>
+              {useDefaultPartner && (
+                <select
+                  value={selectedDefaultPartner?.id ?? ""}
+                  onChange={(e) => {
+                    const dp = defaultPartnerOptions.find((d) => d.id === Number(e.target.value)) ?? null;
+                    handleSelectDefaultPartner(dp);
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400"
+                >
+                  <option value="">選択してください</option>
+                  {defaultPartnerOptions.map((dp) => (
+                    <option key={dp.id} value={dp.id}>{dp.partner}{dp.detail ? `（${dp.detail}）` : ""}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {/* 取引先 */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">取引先</label>
@@ -274,8 +333,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
               type="text"
               value={partner}
               onChange={(e) => setPartner(e.target.value)}
-              readOnly={isFixedMode && !!selectedFixed}
-              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400 ${isFixedMode && selectedFixed ? "bg-gray-50 text-gray-500" : ""}`}
+              readOnly={isLocked}
+              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400 ${isLocked ? "bg-gray-50 text-gray-500" : ""}`}
             />
           </div>
 
@@ -285,8 +344,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
             <select
               value={account}
               onChange={(e) => setAccount(e.target.value)}
-              disabled={isFixedMode && !!selectedFixed}
-              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400 ${isFixedMode && selectedFixed ? "text-gray-500" : ""}`}
+              disabled={isLocked}
+              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-gray-400 ${isLocked ? "text-gray-500" : ""}`}
             >
               <option value="">-</option>
               {formData.accounts.map((a) => (
@@ -302,9 +361,9 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
               type="text"
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
-              readOnly={isFixedMode && !!selectedFixed}
+              readOnly={isLocked}
               placeholder="任意"
-              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400 ${isFixedMode && selectedFixed ? "bg-gray-50 text-gray-500" : ""}`}
+              className={`w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400 ${isLocked ? "bg-gray-50 text-gray-500" : ""}`}
             />
           </div>
 
@@ -317,30 +376,24 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
               <p className="text-sm text-blue-800">
                 この費目に「{existingExpense.partner}」の登録が既にあります（¥{existingExpense.cost.toLocaleString("ja-JP")}）。
               </p>
-              {isFixedMode && selectedFixed ? (
-                <p className="text-sm text-blue-700 font-medium">
-                  ¥{existingExpense.cost.toLocaleString("ja-JP")} → ¥{mergedAmount.toLocaleString("ja-JP")} に差し替えます
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {[
-                    { value: null,      label: "新規行として追加する" },
-                    { value: "add"    , label: `金額を追加して更新（¥${existingExpense.cost.toLocaleString("ja-JP")} + ¥${mergedAmount.toLocaleString("ja-JP")} = ¥${(existingExpense.cost + mergedAmount).toLocaleString("ja-JP")}）` },
-                    { value: "replace", label: `金額を差し替えて更新（¥${existingExpense.cost.toLocaleString("ja-JP")} → ¥${mergedAmount.toLocaleString("ja-JP")}）` },
-                  ].map((opt) => (
-                    <label key={String(opt.value)} className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="updateMode"
-                        checked={updateMode === opt.value}
-                        onChange={() => setUpdateMode(opt.value as "add" | "replace" | null)}
-                        className="border-blue-300"
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-              )}
+              <div className="space-y-1.5">
+                {[
+                  { value: null,      label: "新規行として追加する" },
+                  { value: "add"    , label: `金額を追加して更新（¥${existingExpense.cost.toLocaleString("ja-JP")} + ¥${mergedAmount.toLocaleString("ja-JP")} = ¥${(existingExpense.cost + mergedAmount).toLocaleString("ja-JP")}）` },
+                  { value: "replace", label: `金額を差し替えて更新（¥${existingExpense.cost.toLocaleString("ja-JP")} → ¥${mergedAmount.toLocaleString("ja-JP")}）` },
+                ].map((opt) => (
+                  <label key={String(opt.value)} className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="updateMode"
+                      checked={updateMode === opt.value}
+                      onChange={() => setUpdateMode(opt.value as "add" | "replace" | null)}
+                      className="border-blue-300"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 

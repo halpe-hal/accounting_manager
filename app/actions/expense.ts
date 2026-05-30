@@ -265,6 +265,38 @@ export async function registerExpenseFromCard(params: {
   return { success: true };
 }
 
+export async function registerExpenseFromBank(params: {
+  year: number; month: number; topCategory: string; secondCategory: string;
+  partner: string; account: string; detail: string; cost: number;
+  existingId?: number; existingCost?: number;
+}): Promise<{ success: true } | { error: string }> {
+  const authErr = await checkWriteAdmin();
+  if (authErr) return { error: "権限がありません" };
+
+  const depMode = await isDepreciationMode();
+  const supabase = await createClient();
+  const table = depMode ? "all_expense_depreciation" : "all_expense";
+  const { year, month, topCategory, secondCategory, partner, account, detail, cost } = params;
+
+  if (params.existingId) {
+    const newCost = (params.existingCost ?? 0) + cost;
+    const { error } = await supabase.from(table).update({ cost: newCost, updated_at: new Date().toISOString() }).eq("id", params.existingId);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from(table).insert({
+      year, month, top_category: topCategory, second_category: secondCategory,
+      partner, account, detail, payment: "銀行引落", cost, updated_at: new Date().toISOString(),
+    });
+    if (error) return { error: error.message };
+  }
+
+  if (depMode) await syncDepOnly(year, month, secondCategory, topCategory);
+  else await syncCategory(year, month, secondCategory, topCategory);
+
+  revalidatePath("/monthly-io");
+  return { success: true };
+}
+
 export async function reflectSocialInsurance(
   year: number,
   month: number,
