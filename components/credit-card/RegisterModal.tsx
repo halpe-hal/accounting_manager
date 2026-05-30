@@ -8,6 +8,7 @@ import type { RegistrationFormData } from "@/app/actions/credit-card-register";
 import type { Expense, FixedCategory, DefaultPartner } from "@/lib/types";
 
 export function recordKey(r: CardRecord) {
+  if (r._idx !== undefined) return `cidx:${r._idx}`;
   return `${r.date}__${r.description}__${r.amount}__${r.card}`;
 }
 

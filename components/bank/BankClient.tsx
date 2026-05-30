@@ -18,14 +18,17 @@ function groupRecords(records: BankRecord[]) {
 
 function formatYen(n: number) { return `¥${Math.round(n).toLocaleString("ja-JP")}`; }
 
+type RegisterTarget = { record: BankRecord; allKeys: string[]; totalAmount: number };
+
 export default function BankClient() {
   const [records, setRecords] = useState<BankRecord[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [registeredKeys, setRegisteredKeys] = useState<Set<string>>(new Set());
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
-  const [registerTarget, setRegisterTarget] = useState<BankRecord | null>(null);
+  const [registerTarget, setRegisterTarget] = useState<RegisterTarget | null>(null);
   const [depositTarget, setDepositTarget] = useState<BankRecord | null>(null);
+  const idxRef = useRef(0);
   const [filterYear, setFilterYear] = useState<number | "all">("all");
   const [filterMonth, setFilterMonth] = useState<number | "all">("all");
   const [filterBank, setFilterBank] = useState<string>("all");
@@ -37,8 +40,9 @@ export default function BankClient() {
     if (result.error || result.records.length === 0) {
       setErrors((prev) => [...prev, `${filename}: ${result.error ?? "明細なし"}`]);
     } else {
+      const withIdx = result.records.map((r) => ({ ...r, _idx: idxRef.current++ }));
       setRecords((prev) => {
-        const merged = [...prev, ...result.records];
+        const merged = [...prev, ...withIdx];
         merged.sort((a, b) =>
           a.year !== b.year ? a.year - b.year :
           a.month !== b.month ? a.month - b.month :
@@ -78,16 +82,36 @@ export default function BankClient() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function handleSuccess(key: string) {
-    setRegisteredKeys((prev) => new Set([...prev, key]));
-    setCheckedKeys((prev) => { const n = new Set(prev); n.delete(key); return n; });
+  function handleSuccess(keys: string[]) {
+    setRegisteredKeys((prev) => new Set([...prev, ...keys]));
+    setCheckedKeys((prev) => { const n = new Set(prev); keys.forEach((k) => n.delete(k)); return n; });
     setRegisterTarget(null);
     setDepositTarget(null);
   }
 
   function toggleCheck(key: string, r: BankRecord) {
-    if (r.type !== "withdrawal") return; // 出金のみチェック可
-    setCheckedKeys((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+    if (r.type !== "withdrawal") return;
+    setCheckedKeys((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) {
+        n.delete(key);
+      } else {
+        // チェック時: 同日・同摘要・同銀行の出金を全てグループ選択
+        n.add(key);
+        records.forEach((rec) => {
+          if (
+            rec.type === "withdrawal" &&
+            rec.date === r.date &&
+            rec.description === r.description &&
+            rec.bank === r.bank &&
+            !registeredKeys.has(bankRecordKey(rec))
+          ) {
+            n.add(bankRecordKey(rec));
+          }
+        });
+      }
+      return n;
+    });
   }
 
   function toggleGroupCheck(groupKeys: string[]) {
@@ -127,7 +151,13 @@ export default function BankClient() {
       <h1 className="text-2xl font-bold text-gray-800">銀行明細取込</h1>
 
       {registerTarget && (
-        <BankRegisterModal record={registerTarget} onClose={() => setRegisterTarget(null)} onSuccess={handleSuccess} />
+        <BankRegisterModal
+          record={registerTarget.record}
+          allKeys={registerTarget.allKeys}
+          totalAmount={registerTarget.totalAmount}
+          onClose={() => setRegisterTarget(null)}
+          onSuccess={handleSuccess}
+        />
       )}
       {depositTarget && (
         <BankDepositModal record={depositTarget} onClose={() => setDepositTarget(null)} onSuccess={handleSuccess} />
@@ -272,7 +302,7 @@ export default function BankClient() {
                               <span className="text-xs text-green-600 font-medium">登録済み</span>
                             ) : (
                               <button
-                                onClick={() => isDeposit ? setDepositTarget(r) : setRegisterTarget(r)}
+                                onClick={() => isDeposit ? setDepositTarget(r) : setRegisterTarget({ record: r, allKeys: [bankRecordKey(r)], totalAmount: r.amount })}
                                 className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
                               >
                                 {isDeposit ? "入金登録" : "出金登録"}
@@ -298,9 +328,12 @@ export default function BankClient() {
               <button onClick={() => setCheckedKeys(new Set())} className="text-sm text-gray-400 hover:text-gray-600">解除</button>
               <button
                 onClick={() => {
-                  // 選択した最初の出金レコードを登録モーダルで一件ずつ開く（バッチは将来対応）
                   const first = selectedRecords[0];
-                  if (first) setRegisterTarget(first);
+                  if (first) setRegisterTarget({
+                    record: first,
+                    allKeys: selectedRecords.map(bankRecordKey),
+                    totalAmount: selectedTotal,
+                  });
                 }}
                 className="text-sm px-4 py-2 text-white rounded-xl"
                 style={{ backgroundColor: "#006a38" }}

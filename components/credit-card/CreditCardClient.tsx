@@ -35,6 +35,7 @@ export default function CreditCardClient() {
   const [filterCard, setFilterCard] = useState<string>("all");
   const [filterUser, setFilterUser] = useState<string>("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const idxRef = useRef(0);
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -50,8 +51,9 @@ export default function CreditCardClient() {
           newErrors.push(`${file.name}: ${result.error}`);
           setErrors((prev) => [...prev, `${file.name}: ${result.error}`]);
         } else {
+          const withIdx = result.records.map((r) => ({ ...r, _idx: idxRef.current++ }));
           setRecords((prev) => {
-            const merged = [...prev, ...result.records];
+            const merged = [...prev, ...withIdx];
             merged.sort((a, b) =>
               a.year !== b.year ? a.year - b.year :
               a.month !== b.month ? a.month - b.month :

@@ -9,11 +9,13 @@ import type { Expense, FixedCategory, DefaultPartner } from "@/lib/types";
 
 interface Props {
   record: BankRecord;
+  allKeys: string[];
+  totalAmount: number;
   onClose: () => void;
-  onSuccess: (key: string) => void;
+  onSuccess: (keys: string[]) => void;
 }
 
-export default function BankRegisterModal({ record, onClose, onSuccess }: Props) {
+export default function BankRegisterModal({ record, allKeys, totalAmount, onClose, onSuccess }: Props) {
   const [year, setYear] = useState(record.year);
   const [month, setMonth] = useState(record.month);
   const [topCategory, setTopCategory] = useState("");
@@ -93,12 +95,12 @@ export default function BankRegisterModal({ record, onClose, onSuccess }: Props)
     setError(null);
     const result = await registerExpenseFromBank({
       year, month, topCategory, secondCategory, partner, account, detail,
-      cost: record.amount,
+      cost: totalAmount,
       existingId: updateMode && existingExpense ? existingExpense.id : undefined,
       existingCost: updateMode === "add" && existingExpense ? existingExpense.cost : 0,
     });
     if ("error" in result) { setError(result.error); setSubmitting(false); return; }
-    onSuccess(`${record.date}__${record.description}__${record.amount}__${record.type}__${record.bank}`);
+    onSuccess(allKeys);
   }
 
   if (loading || !formData) {
@@ -122,7 +124,7 @@ export default function BankRegisterModal({ record, onClose, onSuccess }: Props)
           <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm">
             <div className="flex justify-between items-start gap-2">
               <span className="text-gray-700 truncate">{record.description}</span>
-              <span className="font-semibold text-red-700 whitespace-nowrap">▼ ¥{record.amount.toLocaleString("ja-JP")}</span>
+              <span className="font-semibold text-red-700 whitespace-nowrap">▼ ¥{totalAmount.toLocaleString("ja-JP")}</span>
             </div>
             <div className="text-xs text-gray-400 mt-0.5">{record.date} · {record.bank}</div>
           </div>
@@ -248,8 +250,8 @@ export default function BankRegisterModal({ record, onClose, onSuccess }: Props)
               <div className="space-y-1.5">
                 {([
                   { value: null, label: "新規行として追加する" },
-                  { value: "add", label: `金額を追加して更新（¥${existingExpense.cost.toLocaleString("ja-JP")} + ¥${record.amount.toLocaleString("ja-JP")} = ¥${(existingExpense.cost + record.amount).toLocaleString("ja-JP")}）` },
-                  { value: "replace", label: `金額を差し替えて更新（¥${existingExpense.cost.toLocaleString("ja-JP")} → ¥${record.amount.toLocaleString("ja-JP")}）` },
+                  { value: "add", label: `金額を追加して更新（¥${existingExpense.cost.toLocaleString("ja-JP")} + ¥${totalAmount.toLocaleString("ja-JP")} = ¥${(existingExpense.cost + totalAmount).toLocaleString("ja-JP")}）` },
+                  { value: "replace", label: `金額を差し替えて更新（¥${existingExpense.cost.toLocaleString("ja-JP")} → ¥${totalAmount.toLocaleString("ja-JP")}）` },
                 ] as const).map((opt) => (
                   <label key={String(opt.value)} className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
                     <input type="radio" name="updateMode" checked={updateMode === opt.value}
@@ -266,7 +268,7 @@ export default function BankRegisterModal({ record, onClose, onSuccess }: Props)
         </div>
 
         <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200 flex-shrink-0">
-          <span className="text-sm font-bold text-gray-800">¥{record.amount.toLocaleString("ja-JP")}</span>
+          <span className="text-sm font-bold text-gray-800">¥{totalAmount.toLocaleString("ja-JP")}</span>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">キャンセル</button>
             <button onClick={handleSubmit} disabled={!canSubmit}

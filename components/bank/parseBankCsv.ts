@@ -1,4 +1,5 @@
 export type BankRecord = {
+  _idx?: number;
   date: string;
   year: number;
   month: number;
@@ -16,6 +17,7 @@ export type ParseBankResult = {
 };
 
 export function bankRecordKey(r: BankRecord): string {
+  if (r._idx !== undefined) return `bidx:${r._idx}`;
   return `${r.date}__${r.description}__${r.amount}__${r.type}__${r.bank}`;
 }
 
@@ -155,8 +157,10 @@ function parseSMBC(lines: string[], bank: string): BankRecord[] {
     const nyuhai = (c[4] ?? "").trim(); // 1=入金, 2=払出
     const amount = parseInt((c[6] ?? "").trim(), 10) || 0;
     if (amount === 0) continue;
-    // 摘要: 仕向人名(col14) があればそちらを優先、なければ摘要内容(col17)
-    const desc = ((c[14] ?? "").trim() || (c[17] ?? "").trim()).replace(/\s+/g, " ");
+    // 摘要: 仕向人名(col14) が数字のみ（参照番号）の場合はスキップして摘要内容(col17)を使う
+    const sender = (c[14] ?? "").trim();
+    const detail = (c[17] ?? "").trim();
+    const desc = (sender && !/^\d+$/.test(sender) ? sender : detail).replace(/\s+/g, " ");
     if (nyuhai === "1") {
       out.push({ date, year, month: mm, description: desc, amount, type: "deposit", balance: 0, bank });
     } else if (nyuhai === "2") {

@@ -1,4 +1,5 @@
 export type CardRecord = {
+  _idx?: number;
   year: number;
   month: number;
   date: string;

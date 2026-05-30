@@ -9,7 +9,7 @@ import type { RegistrationFormData } from "@/app/actions/credit-card-register";
 interface Props {
   record: BankRecord;
   onClose: () => void;
-  onSuccess: (key: string) => void;
+  onSuccess: (keys: string[]) => void;
 }
 
 const TAX_RATES = ["10%", "8%", "0%", "非課税"];
@@ -39,7 +39,7 @@ export default function BankDepositModal({ record, onClose, onSuccess }: Props) 
     setError(null);
     const result = await registerIncomeFromBank({ year, month, topCategory, partner, detail, amount: record.amount, taxRate });
     if ("error" in result) { setError(result.error); setSubmitting(false); return; }
-    onSuccess(`${record.date}__${record.description}__${record.amount}__${record.type}__${record.bank}`);
+    onSuccess([`bidx:${record._idx}`]);
   }
 
   if (loading || !formData) {
