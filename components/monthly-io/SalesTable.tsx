@@ -14,7 +14,7 @@ interface Props {
 }
 
 const TAX_RATES = ["売上10%", "売上8%", "その他売上10%", "その他売上8%"];
-const PAYMENTS = ["現金", "銀行振込", "クレジット", "paygent", "paypal", "その他"];
+const PAYMENTS = ["現金", "銀行振込", "クレジットカード", "paygent", "paypal", "その他"];
 
 type EditableRow = {
   id: number | null;

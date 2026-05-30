@@ -13,7 +13,7 @@ interface Props {
   accountItems: AccountItem[];
 }
 
-const PAYMENTS = ["現金", "振込", "クレジット", "カード", "その他"];
+const PAYMENTS = ["現金", "クレジットカード", "銀行振込", "銀行引落", "その他"];
 
 export default function FixedExpenseClient({
   divisions,

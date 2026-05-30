@@ -13,7 +13,7 @@ interface Props {
   initial: DefaultPartner[];
 }
 
-const PAYMENTS = ["選択してください", "現金", "クレジット", "銀行振込", "銀行引落", "その他"];
+const PAYMENTS = ["選択してください", "現金", "クレジットカード", "銀行振込", "銀行引落", "その他"];
 
 export default function DefaultPartnersTab({ divisions, expenseCategories, accountItems, initial }: Props) {
   const router = useRouter();

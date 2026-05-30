@@ -7,7 +7,7 @@ import type { IncomeSource, Division } from "@/lib/types";
 import { sortDivisionsByBrand, divisionDisplayName } from "@/lib/division-utils";
 
 const TAX_RATES = ["売上10%", "売上8%", "その他売上10%", "その他売上8%"];
-const PAYMENTS = ["選択してください", "現金", "銀行振込", "クレジット", "paygent", "paypal", "その他"];
+const PAYMENTS = ["選択してください", "現金", "銀行振込", "クレジットカード", "paygent", "paypal", "その他"];
 
 interface Props {
   initial: IncomeSource[];
