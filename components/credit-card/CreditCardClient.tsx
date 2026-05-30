@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { parseCardCsv } from "./parseCardCsv";
 import type { CardRecord } from "./parseCardCsv";
 import RegisterModal, { recordKey } from "./RegisterModal";
-import BatchRegisterModal from "./BatchRegisterModal";
 
 type GroupKey = { year: number; month: number; user: string; card: string };
 
@@ -28,8 +27,7 @@ export default function CreditCardClient() {
   const [isDragging, setIsDragging] = useState(false);
   const [registeredKeys, setRegisteredKeys] = useState<Set<string>>(new Set());
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
-  const [registerTarget, setRegisterTarget] = useState<CardRecord | null>(null);
-  const [batchOpen, setBatchOpen] = useState(false);
+  const [registerTarget, setRegisterTarget] = useState<{ record: CardRecord; allKeys: string[]; totalAmount: number } | null>(null);
   const [filterYear, setFilterYear] = useState<number | "all">("all");
   const [filterMonth, setFilterMonth] = useState<number | "all">("all");
   const [filterCard, setFilterCard] = useState<string>("all");
@@ -97,7 +95,6 @@ export default function CreditCardClient() {
       return next;
     });
     setRegisterTarget(null);
-    setBatchOpen(false);
   }
 
   function toggleCheck(key: string) {
@@ -158,19 +155,13 @@ export default function CreditCardClient() {
 
       {registerTarget && (
         <RegisterModal
-          record={registerTarget}
+          record={registerTarget.record}
           allRecords={records}
           registeredKeys={registeredKeys}
           onClose={() => setRegisterTarget(null)}
           onSuccess={handleRegisterSuccess}
-        />
-      )}
-
-      {batchOpen && selectedRecords.length > 0 && (
-        <BatchRegisterModal
-          selectedRecords={selectedRecords}
-          onClose={() => setBatchOpen(false)}
-          onSuccess={handleRegisterSuccess}
+          allKeys={registerTarget.allKeys.length > 1 ? registerTarget.allKeys : undefined}
+          totalAmountOverride={registerTarget.allKeys.length > 1 ? registerTarget.totalAmount : undefined}
         />
       )}
 
@@ -341,7 +332,7 @@ export default function CreditCardClient() {
                               <span className="text-xs text-green-600 font-medium">登録済み</span>
                             ) : (
                               <button
-                                onClick={() => setRegisterTarget(r)}
+                                onClick={() => setRegisterTarget({ record: r, allKeys: [recordKey(r)], totalAmount: r.amount })}
                                 className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 whitespace-nowrap"
                               >
                                 登録
@@ -371,7 +362,14 @@ export default function CreditCardClient() {
                 解除
               </button>
               <button
-                onClick={() => setBatchOpen(true)}
+                onClick={() => {
+                const first = selectedRecords[0];
+                if (first) setRegisterTarget({
+                  record: first,
+                  allKeys: selectedRecords.map(recordKey),
+                  totalAmount: selectedTotal,
+                });
+              }}
                 className="text-sm px-4 py-2 text-white rounded-xl"
                 style={{ backgroundColor: "#006a38" }}
               >

@@ -18,9 +18,12 @@ interface Props {
   registeredKeys: Set<string>;
   onClose: () => void;
   onSuccess: (keys: string[]) => void;
+  allKeys?: string[];
+  totalAmountOverride?: number;
 }
 
-export default function RegisterModal({ record, allRecords, registeredKeys, onClose, onSuccess }: Props) {
+export default function RegisterModal({ record, allRecords, registeredKeys, onClose, onSuccess, allKeys, totalAmountOverride }: Props) {
+  const isBatchMode = !!allKeys && allKeys.length > 1;
   const [year, setYear] = useState(record.year);
   const [month, setMonth] = useState(record.month);
   const [topCategory, setTopCategory] = useState("");
@@ -112,8 +115,8 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
       !registeredKeys.has(recordKey(r))
   );
 
-  const mergedAmount =
-    record.amount + (mergeMode ? samePayeeRecords.reduce((s, r) => s + r.amount, 0) : 0);
+  const mergedAmount = totalAmountOverride ??
+    (record.amount + (mergeMode ? samePayeeRecords.reduce((s, r) => s + r.amount, 0) : 0));
 
   const defaultPartnerOptions = formData
     ? formData.defaultPartners.filter(
@@ -150,8 +153,7 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
       return;
     }
 
-    const keys = [recordKey(record)];
-    if (mergeMode) samePayeeRecords.forEach((r) => keys.push(recordKey(r)));
+    const keys = allKeys ?? [recordKey(record), ...(mergeMode ? samePayeeRecords.map(recordKey) : [])];
     onSuccess(keys);
   }
 
@@ -181,13 +183,15 @@ export default function RegisterModal({ record, allRecords, registeredKeys, onCl
           <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm">
             <div className="flex justify-between items-start gap-2">
               <span className="text-gray-700 truncate">{record.description}</span>
-              <span className="font-semibold text-gray-800 whitespace-nowrap">¥{record.amount.toLocaleString("ja-JP")}</span>
+              <span className="font-semibold text-gray-800 whitespace-nowrap">
+                {isBatchMode ? `¥${mergedAmount.toLocaleString("ja-JP")}（${allKeys!.length}件合計）` : `¥${record.amount.toLocaleString("ja-JP")}`}
+              </span>
             </div>
             <div className="text-xs text-gray-400 mt-0.5">{record.date} · {record.card} · {record.user}</div>
           </div>
 
-          {/* 同一支払先の合算 */}
-          {samePayeeRecords.length > 0 && (
+          {/* 同一支払先の合算（バッチモード時は非表示） */}
+          {!isBatchMode && samePayeeRecords.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2">
               <p className="text-sm text-amber-800">
                 同じ支払い先が他に <strong>{samePayeeRecords.length}件</strong>（
