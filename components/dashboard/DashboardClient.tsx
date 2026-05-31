@@ -223,7 +223,9 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
   const allOptions = honbuMode
     ? rawOptions.filter((opt) => opt.key === "Lia全体合計" || Boolean(virtualMap[opt.key]))
     : rawOptions;
+  const CUSTOM_KEY = "__custom__";
   const [selectedDiv, setSelectedDiv] = useState(() => allOptions[0]?.key ?? "");
+  const [customDivs, setCustomDivs] = useState<string[]>([]);
   const [plData, setPLData] = useState<PLData | null>(null);
   const [totals, setTotals] = useState<Record<string, number>>({});
   const [target, setTarget] = useState<ExpenseTarget | null>(null);
@@ -234,6 +236,12 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
   const years = [...new Set(months.map((m) => Number(m.split("-")[0])))];
 
   const loadData = useCallback(async () => {
+    if (selectedDiv === CUSTOM_KEY && customDivs.length === 0) {
+      setPLData(null);
+      setTotals({});
+      setTarget(null);
+      return;
+    }
     setLoading(true);
     try {
       let salesData: SalesTotal[];
@@ -244,6 +252,17 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
           getSalesTotalsAll(years),
           getExpenseTotalsAll(years),
         ]);
+      } else if (selectedDiv === CUSTOM_KEY) {
+        const results = await Promise.all(
+          customDivs.map((div) =>
+            Promise.all([
+              getSalesTotalsByYears(years, div),
+              getExpenseTotalsByYears(years, div),
+            ])
+          )
+        );
+        salesData = results.flatMap(([s]) => s);
+        expData = results.flatMap(([, e]) => e);
       } else if (virtualMap[selectedDiv]) {
         const divList = virtualMap[selectedDiv];
         const results = await Promise.all(
@@ -281,8 +300,8 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
       setPLData(pl);
       setTotals(t);
 
-      // 仮想集計の場合は目標を取得しない
-      if (!virtualMap[selectedDiv] && selectedDiv !== "Lia全体合計") {
+      // 仮想集計・カスタム選択の場合は目標を取得しない
+      if (!virtualMap[selectedDiv] && selectedDiv !== "Lia全体合計" && selectedDiv !== CUSTOM_KEY) {
         const tgt = await getExpenseTarget(selectedDiv);
         setTarget(tgt);
       } else {
@@ -292,19 +311,13 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDiv, selectedTermIdx, taxIncluded]);
+  }, [selectedDiv, selectedTermIdx, taxIncluded, customDivs]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  if (!plData) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-sm">読み込み中...</div>
-      </div>
-    );
-  }
+  // カスタム選択時は事業部未選択でも選択パネルを表示するため早期returnしない
 
   const getRate = (numerator: number, total: number) =>
     total ? numerator / total : 0;
@@ -326,11 +339,12 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
       }
     : {};
 
+  const safePL: PLData = plData ?? {};
   const HIDDEN_EXCL_TAX = new Set(["消費税額", "法人税額", "融資返済元金", "内部留保"]);
   const honbuMinIdx = PL_ROWS.indexOf("実質営業利益");
   const honbuLimitIdx = PL_ROWS.indexOf("最終営業利益");
   const limitIdx = rowLimit ? PL_ROWS.indexOf(rowLimit) : PL_ROWS.length - 1;
-  const PLRows = Object.keys(plData).filter((r) => {
+  const PLRows = Object.keys(safePL).filter((r) => {
     if (!taxIncluded && HIDDEN_EXCL_TAX.has(r)) return false;
     const idx = PL_ROWS.indexOf(r as PLRow);
     if (honbuMode && idx < honbuMinIdx) return false;
@@ -357,7 +371,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
 
     for (const row of PLRows) {
       const isHighlight = HIGHLIGHT_ROWS.has(row);
-      const rowRevenue = plData["総売上"] ?? {};
+      const rowRevenue = safePL["総売上"] ?? {};
       const stickyBg = isHighlight ? "bg-green-50" : "bg-white";
       elements.push(
         <tr
@@ -371,7 +385,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
             {formatYen(totals[row] ?? 0)}
           </td>
           {months.map((m) => {
-            const val = plData[row]?.[m] ?? 0;
+            const val = safePL[row]?.[m] ?? 0;
             return (
               <td key={m} className={`py-1.5 px-3 text-sm text-right border border-gray-200 ${val < 0 ? "text-red-600" : "text-black"}`}>
                 {formatYen(val)}
@@ -418,13 +432,13 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
               const rev = rowRevenue[m] ?? 0;
               const num = (() => {
                 if (rateLabel === "人件費率")
-                  return (plData["人件費"]?.[m] ?? 0) + (plData["源泉税・地方税・社会保険料"]?.[m] ?? 0);
+                  return (safePL["人件費"]?.[m] ?? 0) + (safePL["源泉税・地方税・社会保険料"]?.[m] ?? 0);
                 if (rateLabel === "FL比率")
-                  return (plData["原価"]?.[m] ?? 0) + (plData["人件費"]?.[m] ?? 0) + (plData["源泉税・地方税・社会保険料"]?.[m] ?? 0);
+                  return (safePL["原価"]?.[m] ?? 0) + (safePL["人件費"]?.[m] ?? 0) + (safePL["源泉税・地方税・社会保険料"]?.[m] ?? 0);
                 if (rateLabel === "FLR比率")
-                  return (plData["原価"]?.[m] ?? 0) + (plData["人件費"]?.[m] ?? 0) + (plData["源泉税・地方税・社会保険料"]?.[m] ?? 0) + (plData["家賃"]?.[m] ?? 0);
+                  return (safePL["原価"]?.[m] ?? 0) + (safePL["人件費"]?.[m] ?? 0) + (safePL["源泉税・地方税・社会保険料"]?.[m] ?? 0) + (safePL["家賃"]?.[m] ?? 0);
                 const numRow = RATE_ROWS[rateLabel];
-                return plData[numRow]?.[m] ?? 0;
+                return safePL[numRow]?.[m] ?? 0;
               })();
               const rate = rev ? num / rev : 0;
               const monthDiff = (rate * 100) - (tgtRate ?? 0);
@@ -457,7 +471,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
                 {formatYen(incentiveTotal)}
               </td>
               {months.map((m) => {
-                const val = Math.max(0, ((plData["最終営業利益"]?.[m] ?? 0) - 1200000) * 0.1);
+                const val = Math.max(0, ((safePL["最終営業利益"]?.[m] ?? 0) - 1200000) * 0.1);
                 return (
                   <td key={m} className="py-1.5 px-3 text-sm text-right border border-gray-200 text-black">
                     {formatYen(val)}
@@ -478,7 +492,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
         {honbuMode ? "インセンティブ原資計算" : taxIncluded ? "ダッシュボード" : "【税抜】ダッシュボード"}
       </h1>
 
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-4 mb-4">
         <div>
           <label className="block text-xs text-black mb-1">期を選択</label>
           <select
@@ -498,22 +512,79 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
           <label className="block text-xs text-black mb-1">事業部・店舗を選択</label>
           <select
             value={selectedDiv}
-            onChange={(e) => setSelectedDiv(e.target.value)}
+            onChange={(e) => { setSelectedDiv(e.target.value); setCustomDivs([]); }}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2"
             style={{ "--tw-ring-color": "#006a38" } as React.CSSProperties}
           >
             {allOptions.map((opt) => (
               <option key={opt.key} value={opt.key}>{opt.label}</option>
             ))}
+            {!honbuMode && <option value={CUSTOM_KEY}>カスタム選択</option>}
           </select>
         </div>
       </div>
+
+      {/* カスタム選択パネル */}
+      {selectedDiv === CUSTOM_KEY && (
+        <div className="mb-6 bg-white rounded-2xl border border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-gray-700">
+              集計する事業部を選択
+              {customDivs.length > 0 && (
+                <span className="ml-2 text-xs text-gray-500">（{customDivs.length}件選択中）</span>
+              )}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCustomDivs(divisions.map((d) => d.name))}
+                className="text-xs text-gray-500 hover:text-gray-800 underline"
+              >
+                全選択
+              </button>
+              <button
+                onClick={() => setCustomDivs([])}
+                className="text-xs text-gray-500 hover:text-gray-800 underline"
+              >
+                全解除
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {divisions.map((div) => (
+              <label key={div.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-lg">
+                <input
+                  type="checkbox"
+                  checked={customDivs.includes(div.name)}
+                  onChange={(e) => {
+                    if (e.target.checked) setCustomDivs((prev) => [...prev, div.name]);
+                    else setCustomDivs((prev) => prev.filter((d) => d !== div.name));
+                  }}
+                  className="rounded border-gray-300"
+                />
+                <span className="truncate">{div.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="text-sm text-gray-400 mb-4">データを読み込み中...</div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      {!plData && selectedDiv === CUSTOM_KEY && customDivs.length === 0 && (
+        <div className="flex items-center justify-center h-32 bg-white rounded-2xl border border-gray-200">
+          <p className="text-sm text-gray-400">事業部を選択するとPLが表示されます</p>
+        </div>
+      )}
+
+      {!plData && selectedDiv !== CUSTOM_KEY && !loading && (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-400 text-sm">読み込み中...</div>
+        </div>
+      )}
+
+      {plData && <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <h2 className="text-base font-semibold text-black px-4 py-3 border-b border-gray-100">
           月別PL
         </h2>
@@ -540,7 +611,7 @@ export default function DashboardClient({ divisions, allDivisions, taxIncluded, 
             <tbody>{renderRows()}</tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
