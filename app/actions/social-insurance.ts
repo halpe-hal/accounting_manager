@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { checkWriteAdmin } from "@/lib/auth-guard";
-import type { SocialInsuranceEmployee, SocialInsuranceRates } from "@/lib/types";
+import type { SocialInsuranceEmployee, SocialInsuranceRates, SocialInsuranceRemunerationChange } from "@/lib/types";
 
 const TABLE = "social_insurance_employees";
 const RATES_TABLE = "social_insurance_rates";
 const REFLECTIONS_TABLE = "social_insurance_reflections";
+const CHANGES_TABLE = "social_insurance_remuneration_changes";
 
 export async function getReflections(): Promise<Array<{ year: number; month: number }>> {
   const supabase = await createClient();
@@ -99,6 +100,47 @@ export async function deleteEmployee(id: number): Promise<{ error: string } | un
   const authErr = await checkWriteAdmin(); if (authErr) return { error: "権限がありません" };
   const supabase = await createClient();
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/social-insurance");
+}
+
+export async function getRemunerationChanges(): Promise<SocialInsuranceRemunerationChange[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from(CHANGES_TABLE)
+    .select("*")
+    .order("change_year")
+    .order("change_month");
+  return data ?? [];
+}
+
+export async function addRemunerationChange(
+  employeeId: number,
+  changeYear: number,
+  changeMonth: number,
+  standardMonthlyRemuneration: number
+): Promise<{ error: string } | { id: number }> {
+  const authErr = await checkWriteAdmin(); if (authErr) return { error: "権限がありません" };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(CHANGES_TABLE)
+    .insert({
+      employee_id: employeeId,
+      change_year: changeYear,
+      change_month: changeMonth,
+      standard_monthly_remuneration: standardMonthlyRemuneration,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+  revalidatePath("/social-insurance");
+  return { id: data.id };
+}
+
+export async function deleteRemunerationChange(id: number): Promise<{ error: string } | undefined> {
+  const authErr = await checkWriteAdmin(); if (authErr) return { error: "権限がありません" };
+  const supabase = await createClient();
+  const { error } = await supabase.from(CHANGES_TABLE).delete().eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/social-insurance");
 }

@@ -2,14 +2,36 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { addEmployee, updateEmployee, deleteEmployee, updateRates } from "@/app/actions/social-insurance";
-import type { SocialInsuranceEmployee, Division, SocialInsuranceRates } from "@/lib/types";
+import type { SocialInsuranceEmployee, Division, SocialInsuranceRates, SocialInsuranceRemunerationChange } from "@/lib/types";
 import ReflectModal, { type DivisionItem } from "./ReflectModal";
+import RemunerationChangeModal from "./RemunerationChangeModal";
 
 interface Props {
   employees: SocialInsuranceEmployee[];
   divisions: Division[];
   rates: SocialInsuranceRates;
   reflections: Array<{ year: number; month: number }>;
+  remunerationChanges: SocialInsuranceRemunerationChange[];
+}
+
+// 指定の年月時点で有効な標準報酬月額を、月額変更履歴から求める
+function getEffectiveRemuneration(
+  base: number,
+  changes: SocialInsuranceRemunerationChange[],
+  year: number,
+  month: number
+): number {
+  const targetKey = year * 12 + month;
+  let effective = base;
+  let effectiveKey = -1;
+  for (const c of changes) {
+    const key = c.change_year * 12 + c.change_month;
+    if (key <= targetKey && key > effectiveKey) {
+      effective = c.standard_monthly_remuneration;
+      effectiveKey = key;
+    }
+  }
+  return effective;
 }
 
 type EditState = {
@@ -49,7 +71,7 @@ function ratesToState(r: SocialInsuranceRates): RatesState {
   };
 }
 
-export default function SocialInsuranceClient({ employees: initialEmployees, divisions, rates: initialRates, reflections: initialReflections }: Props) {
+export default function SocialInsuranceClient({ employees: initialEmployees, divisions, rates: initialRates, reflections: initialReflections, remunerationChanges: initialRemunerationChanges }: Props) {
   const [employees, setEmployees] = useState(initialEmployees);
   const [ratesState, setRatesState] = useState<RatesState>(() => ratesToState(initialRates));
   const [ratesEditing, setRatesEditing] = useState(false);
@@ -57,6 +79,18 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
   const [reflectedKeys, setReflectedKeys] = useState<Set<string>>(
     () => new Set(initialReflections.map((r) => `${r.year}-${r.month}`))
   );
+  const [remunerationChanges, setRemunerationChanges] = useState(initialRemunerationChanges);
+  const [changeTarget, setChangeTarget] = useState<SocialInsuranceEmployee | null>(null);
+
+  const changesByEmployee = useMemo(() => {
+    const map = new Map<number, SocialInsuranceRemunerationChange[]>();
+    for (const c of remunerationChanges) {
+      const list = map.get(c.employee_id) ?? [];
+      list.push(c);
+      map.set(c.employee_id, list);
+    }
+    return map;
+  }, [remunerationChanges]);
 
   const summary = useMemo(() => {
     const now = new Date();
@@ -84,7 +118,7 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
       let employer = 0, employee = 0;
       const divMap = new Map<string, { employer: number; employee: number }>();
       for (const emp of active) {
-        const r = emp.standard_monthly_remuneration;
+        const r = getEffectiveRemuneration(emp.standard_monthly_remuneration, changesByEmployee.get(emp.id) ?? [], year, month);
         const empEmployee = roundKosen(r * h / 2 + r * cs / 2 + r * p / 2);
         const empEmployer = roundKosen(r * h / 2 + r * cs / 2 + r * p / 2 + r * cc);
         employee += empEmployee;
@@ -110,7 +144,7 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
       current: { label: `${cy}年${cm}月`, ...calc(cy, cm) },
       prev:    { label: `${py}年${pm}月`, ...calc(py, pm) },
     };
-  }, [employees, ratesState]);
+  }, [employees, ratesState, changesByEmployee]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState>({ name: "", remuneration: 0, division: "", enrollmentYear: "", enrollmentMonth: "" });
   const [adding, setAdding] = useState(false);
@@ -337,6 +371,22 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
         />
       )}
 
+      {changeTarget && (
+        <RemunerationChangeModal
+          employee={changeTarget}
+          changes={changesByEmployee.get(changeTarget.id) ?? []}
+          onClose={() => setChangeTarget(null)}
+          onAdded={(change) => {
+            setRemunerationChanges((prev) => [...prev, change]);
+            showMsg("月額変更を登録しました");
+          }}
+          onDeleted={(id) => {
+            setRemunerationChanges((prev) => prev.filter((c) => c.id !== id));
+            showMsg("月額変更を削除しました");
+          }}
+        />
+      )}
+
       {message && (
         <div className={`px-4 py-2 rounded-xl text-sm ${isError ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
           {message}
@@ -514,7 +564,29 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
                 ) : (
                   <tr key={emp.id} className="hover:bg-gray-50">
                     <td className="py-2 px-4 text-gray-800 border-b border-gray-100">{emp.name}</td>
-                    <td className="py-2 px-4 text-right text-gray-800 border-b border-gray-100">{formatYen(emp.standard_monthly_remuneration)}</td>
+                    <td className="py-2 px-4 text-right text-gray-800 border-b border-gray-100">
+                      {(() => {
+                        const changes = changesByEmployee.get(emp.id) ?? [];
+                        const cy = now.getFullYear();
+                        const cm = now.getMonth() + 1;
+                        const effective = getEffectiveRemuneration(emp.standard_monthly_remuneration, changes, cy, cm);
+                        if (changes.length === 0) {
+                          return formatYen(effective);
+                        }
+                        const sorted = [...changes].sort((a, b) => (a.change_year - b.change_year) || (a.change_month - b.change_month));
+                        const latest = sorted[sorted.length - 1];
+                        const latestApplied = latest.change_year * 12 + latest.change_month <= cy * 12 + cm;
+                        return (
+                          <>
+                            {formatYen(effective)}
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {latest.change_year}年{latest.change_month}月〜 {formatYen(latest.standard_monthly_remuneration)}
+                              {latestApplied ? "（適用中）" : "（変更予定）"}
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </td>
                     <td className="py-2 px-4 text-gray-700 border-b border-gray-100">{emp.division}</td>
                     <td className="py-2 px-4 text-gray-700 border-b border-gray-100">{formatEnrollment(emp.enrollment_year, emp.enrollment_month)}</td>
                     <td className="py-2 px-4 border-b border-gray-100 text-center">
@@ -524,6 +596,12 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >
                           編集
+                        </button>
+                        <button
+                          onClick={() => setChangeTarget(emp)}
+                          className="text-xs text-gray-600 hover:text-gray-800"
+                        >
+                          月額変更
                         </button>
                         <button
                           onClick={() => handleDelete(emp.id, emp.name)}

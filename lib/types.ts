@@ -157,6 +157,16 @@ export type SocialInsuranceEmployee = {
   updated_at?: string;
 };
 
+// ---- 社会保険料 月額変更（随時改定） ----
+export type SocialInsuranceRemunerationChange = {
+  id: number;
+  employee_id: number;
+  change_year: number;
+  change_month: number;
+  standard_monthly_remuneration: number;
+  created_at?: string;
+};
+
 // ---- 社会保険料率 ----
 export type SocialInsuranceRates = {
   health_insurance_rate: number;
