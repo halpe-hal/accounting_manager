@@ -341,7 +341,16 @@ export default function SocialInsuranceClient({ employees: initialEmployees, div
             </div>
             <div className="pt-1 border-t border-gray-100">
               {reflectedKeys.has(`${s.yearNum}-${s.monthNum}`) ? (
-                <span className="text-xs text-gray-400">明細登録済み</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400">明細登録済み</span>
+                  <button
+                    onClick={() => setReflectTarget({ year: Number(s.yearNum), month: Number(s.monthNum), divisions: s.divisions })}
+                    disabled={s.divisions.length === 0}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline disabled:opacity-40"
+                  >
+                    再登録
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => setReflectTarget({ year: Number(s.yearNum), month: Number(s.monthNum), divisions: s.divisions })}

@@ -317,7 +317,51 @@ export async function reflectSocialInsurance(
   const supabase = await createClient();
   const table = depMode ? "all_expense_depreciation" : "all_expense";
 
+  // 挿入先の費目/事業部ごとに、当月データが未登録の場合は default_partners の行をコスト0で先に保存する
+  // （データがある状態で反映すると default_partners の仮表示行がUI上から消えてしまうため）
+  const uniqueCombos = [...new Map(items.map((i) => [`${i.secondCategory}|${i.topCategory}`, i])).values()];
+  for (const { secondCategory, topCategory } of uniqueCombos) {
+    const { count } = await supabase
+      .from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("year", year).eq("month", month)
+      .eq("second_category", secondCategory).eq("top_category", topCategory);
+    if (!count) {
+      const { data: defaults } = await supabase
+        .from("default_partners")
+        .select("*")
+        .eq("second_category", secondCategory)
+        .eq("top_category", topCategory);
+      if (defaults && defaults.length > 0) {
+        await supabase.from(table).insert(
+          defaults.map((d) => ({
+            year, month,
+            second_category: secondCategory,
+            top_category: topCategory,
+            partner: d.partner,
+            account: d.account,
+            detail: d.detail ?? "",
+            payment: d.payment,
+            cost: 0,
+            updated_at: new Date().toISOString(),
+          }))
+        );
+      }
+    }
+  }
+
   for (const item of items) {
+    // 同じ行がすでに存在する場合はスルー（再登録時の重複防止）
+    const { count: existing } = await supabase
+      .from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("year", year).eq("month", month)
+      .eq("top_category", item.topCategory)
+      .eq("second_category", item.secondCategory)
+      .eq("partner", item.partner)
+      .eq("detail", item.detail);
+    if (existing && existing > 0) continue;
+
     const { error } = await supabase.from(table).insert({
       year, month,
       top_category: item.topCategory,
