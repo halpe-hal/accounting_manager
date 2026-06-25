@@ -45,7 +45,7 @@ export default function BankRegisterModal({ record, allKeys, totalAmount, onClos
     findExistingExpense(year, month, topCategory, secondCategory, partner).then((exp) => {
       setExistingExpense(exp);
       setChecking(false);
-      if (!exp) setUpdateMode(null);
+      setUpdateMode(exp ? "add" : null);
     });
   }, [year, month, topCategory, secondCategory, partner]);
 
@@ -249,13 +249,12 @@ export default function BankRegisterModal({ record, allKeys, totalAmount, onClos
               <p className="text-sm text-blue-800">この費目に「{existingExpense.partner}」の登録が既にあります（¥{existingExpense.cost.toLocaleString("ja-JP")}）。</p>
               <div className="space-y-1.5">
                 {([
-                  { value: null, label: "新規行として追加する" },
                   { value: "add", label: `金額を追加して更新（¥${existingExpense.cost.toLocaleString("ja-JP")} + ¥${totalAmount.toLocaleString("ja-JP")} = ¥${(existingExpense.cost + totalAmount).toLocaleString("ja-JP")}）` },
                   { value: "replace", label: `金額を差し替えて更新（¥${existingExpense.cost.toLocaleString("ja-JP")} → ¥${totalAmount.toLocaleString("ja-JP")}）` },
                 ] as const).map((opt) => (
-                  <label key={String(opt.value)} className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
+                  <label key={opt.value} className="flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
                     <input type="radio" name="updateMode" checked={updateMode === opt.value}
-                      onChange={() => setUpdateMode(opt.value as "add" | "replace" | null)} className="border-blue-300" />
+                      onChange={() => setUpdateMode(opt.value)} className="border-blue-300" />
                     {opt.label}
                   </label>
                 ))}
