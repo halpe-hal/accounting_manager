@@ -43,8 +43,39 @@ function initRows(
   topCategory: string
 ): EditableRow[] {
   const filtered = expenses.filter((e) => e.second_category === selectedCategory);
-  if (filtered.length > 0) {
-    return filtered.map((e) => ({
+  const defaults = defaultPartners.filter(
+    (p) => p.second_category === selectedCategory && p.top_category === topCategory
+  );
+
+  const usedIds = new Set<number>();
+  const merged = defaults.map((p) => {
+    const match = filtered.find((e) => e.partner === p.partner && !usedIds.has(e.id));
+    if (match) {
+      usedIds.add(match.id);
+      return {
+        id: match.id,
+        partner: match.partner,
+        account: match.account,
+        detail: match.detail ?? "",
+        payment: normalizePayment(match.payment),
+        cost: match.cost ?? 0,
+        _delete: false,
+      };
+    }
+    return {
+      id: null,
+      partner: p.partner,
+      account: p.account,
+      detail: p.detail ?? "",
+      payment: p.payment,
+      cost: 0,
+      _delete: false,
+    };
+  });
+
+  const extra = filtered
+    .filter((e) => !usedIds.has(e.id))
+    .map((e) => ({
       id: e.id,
       partner: e.partner,
       account: e.account,
@@ -53,19 +84,8 @@ function initRows(
       cost: e.cost ?? 0,
       _delete: false,
     }));
-  }
-  const defaults = defaultPartners.filter(
-    (p) => p.second_category === selectedCategory && p.top_category === topCategory
-  );
-  return defaults.map((p) => ({
-    id: null,
-    partner: p.partner,
-    account: p.account,
-    detail: p.detail ?? "",
-    payment: p.payment,
-    cost: 0,
-    _delete: false,
-  }));
+
+  return [...merged, ...extra];
 }
 
 export default function ExpenseTable({

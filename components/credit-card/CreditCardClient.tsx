@@ -107,7 +107,7 @@ export default function CreditCardClient() {
         const target = filtered.find((r) => recordKey(r) === key);
         if (target) {
           filtered.forEach((rec) => {
-            if (rec.description === target.description && !registeredKeys.has(recordKey(rec))) {
+            if (rec.description === target.description && rec.user === target.user && !registeredKeys.has(recordKey(rec))) {
               next.add(recordKey(rec));
             }
           });
