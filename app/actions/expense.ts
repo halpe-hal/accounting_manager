@@ -351,29 +351,41 @@ export async function reflectSocialInsurance(
   }
 
   for (const item of items) {
-    // 同じ行がすでに存在する場合はスルー（再登録時の重複防止）
-    const { count: existing } = await supabase
+    // 同じ行がすでに存在する場合は重複登録せず、最新の金額に更新する（再登録時）
+    const { data: existingRows } = await supabase
       .from(table)
-      .select("id", { count: "exact", head: true })
+      .select("id")
       .eq("year", year).eq("month", month)
       .eq("top_category", item.topCategory)
       .eq("second_category", item.secondCategory)
       .eq("partner", item.partner)
       .eq("detail", item.detail);
-    if (existing && existing > 0) continue;
 
-    const { error } = await supabase.from(table).insert({
-      year, month,
-      top_category: item.topCategory,
-      second_category: item.secondCategory,
-      partner: item.partner,
-      account: item.account,
-      detail: item.detail,
-      payment: item.payment,
-      cost: item.cost,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) return { error: error.message };
+    if (existingRows && existingRows.length > 0) {
+      const { error } = await supabase
+        .from(table)
+        .update({
+          account: item.account,
+          payment: item.payment,
+          cost: item.cost,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingRows[0].id);
+      if (error) return { error: error.message };
+    } else {
+      const { error } = await supabase.from(table).insert({
+        year, month,
+        top_category: item.topCategory,
+        second_category: item.secondCategory,
+        partner: item.partner,
+        account: item.account,
+        detail: item.detail,
+        payment: item.payment,
+        cost: item.cost,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) return { error: error.message };
+    }
 
     if (depMode) {
       await syncDepOnly(year, month, item.secondCategory, item.topCategory);
