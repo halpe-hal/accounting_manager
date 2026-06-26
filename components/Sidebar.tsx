@@ -29,8 +29,8 @@ export default function Sidebar({ isAdmin = false, perms = new Set(), depreciati
   const hasAll = perms.has("*");
 
   return (
-    <aside className="w-56 h-screen bg-white border-r border-gray-200 flex flex-col py-6 px-3 flex-shrink-0">
-      <div className="flex items-center gap-2 px-2 mb-4">
+    <aside className="w-56 h-screen bg-white border-r border-gray-200 flex flex-col py-6 px-3 flex-shrink-0 overflow-y-auto">
+      <div className="flex items-center gap-2 px-2 mb-4 flex-shrink-0">
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
           style={{ backgroundColor: "#006a38" }}
@@ -41,7 +41,7 @@ export default function Sidebar({ isAdmin = false, perms = new Set(), depreciati
       </div>
 
       {isAdmin && (
-        <div className="mb-4 px-0">
+        <div className="mb-4 px-0 flex-shrink-0">
           <DepreciationToggle isDepreciation={depreciationMode} />
         </div>
       )}
